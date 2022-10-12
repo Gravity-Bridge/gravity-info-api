@@ -1,0 +1,15 @@
+[package]
+name = "gravity-info-server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ethereum_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge/orchestrator"}
+cosmos_gravity = {path = "../cosmos_gravity"}
+gravity_utils = {path = "../gravity_utils"}
+gravity_proto = {path = "../gravity_proto/"}
+deep_space = "2"
+actix="0.13"
+web30 = "0.19"
