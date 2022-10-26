@@ -16,8 +16,14 @@ serde_derive = "1"
 serde = { version = "1.0", features = ["derive"] }
 env_logger = "0.9"
 log = "0.4"
-actix-web = "4.2"
+actix-web = {version = "4.2", features = ["rustls"]}
+actix-cors = "0.6"
+rustls = "0.20"
+rustls-pemfile = "0.3"
 lazy_static = "1.4"
 tonic = "0.7"
 futures = "0.3"
 num256 = "0.3"
+
+[features]
+development = []
