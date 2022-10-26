@@ -1,0 +1,49 @@
+name: Tests for Gravity Info
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-gravity-info-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v1
+      - name: Check rust
+        run: cd gravity-info-server && cargo check --all
+  test-gravity-info-server:
+    needs: check-gravity-info-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v1
+      - name: Run gravity-info-server tests
+        run: cd gravity-info-server && cargo test --verbose --all
+  rustfmt-gravity-info-server:
+    needs: check-gravity-info-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check code formatting
+        run: cd gravity-info-server && rustup component add rustfmt && cargo fmt --all -- --check
+  clippy-gravity-info-server:
+    needs: check-gravity-info-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v1
+      - name: Check for Clippy lints
+        run: cd gravity-info-server && rustup component add clippy && cargo clippy --all --all-targets --all-features -- -D warnings
+
+  build-gravity-info-dash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build node
+        run: cd gravity-info-dash && yarn && yarn build --frozen-lockfile
