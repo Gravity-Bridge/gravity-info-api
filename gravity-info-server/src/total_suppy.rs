@@ -26,7 +26,8 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tonic::transport::channel::Channel;
 
-const LOOP_TIME: Duration = Duration::from_secs(600);
+// update once a day
+const LOOP_TIME: Duration = Duration::from_secs(86400);
 pub const GRAVITY_DENOM: &str = "ugraviton";
 
 #[derive(Debug, Clone, Serialize)]
