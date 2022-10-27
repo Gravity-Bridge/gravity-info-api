@@ -7,7 +7,7 @@ use clarity::{Address as EthAddress, Uint256};
 use cosmos_gravity::query::{
     get_attestations, get_gravity_params, get_latest_transaction_batches, get_pending_batch_fees,
 };
-use deep_space::{Address, Coin, Contact};
+use deep_space::{Coin, Contact};
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_proto::gravity::{Attestation, BatchFees, Params as GravityParams};
 use gravity_utils::error::GravityError;
@@ -138,7 +138,7 @@ impl From<BatchFees> for InternalBatchFees {
 pub struct InteralAttestation {
     pub height: u64,
     pub observed: bool,
-    pub votes: Vec<Address>,
+    pub votes: u64,
 }
 
 impl From<Attestation> for InteralAttestation {
@@ -146,7 +146,7 @@ impl From<Attestation> for InteralAttestation {
         InteralAttestation {
             height: a.height,
             observed: a.observed,
-            votes: a.votes.into_iter().map(|v| v.parse().unwrap()).collect(),
+            votes: a.votes.len() as u64,
         }
     }
 }
@@ -157,7 +157,7 @@ pub struct InternalGravityParams {
     pub bridge_ethereum_address: EthAddress,
     pub average_block_time: u64,
     pub average_ethereum_block_time: u64,
-    pub target_back_timeout: u64,
+    pub target_batch_timeout: u64,
     pub bridge_active: bool,
     pub ethereum_blacklist: Vec<EthAddress>,
     pub gravity_id: String,
@@ -176,7 +176,7 @@ impl From<GravityParams> for InternalGravityParams {
             average_block_time: p.average_block_time,
             average_ethereum_block_time: p.average_ethereum_block_time,
             bridge_active: p.bridge_active,
-            target_back_timeout: p.target_batch_timeout,
+            target_batch_timeout: p.target_batch_timeout,
             ethereum_blacklist: p
                 .ethereum_blacklist
                 .into_iter()
