@@ -126,3 +126,9 @@ export type EthInfo = {
     erc20_deploys: Array<Erc20DeployedEvent>,
     logic_calls: Array<LogicCallExecutedEvent>,
 }
+
+export type Erc20Metadata = {
+    address: string,
+    decimals: number,
+    symbol : string,
+}

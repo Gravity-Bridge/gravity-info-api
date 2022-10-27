@@ -8,8 +8,12 @@ use cosmos_gravity::query::{
     get_attestations, get_gravity_params, get_latest_transaction_batches, get_pending_batch_fees,
 };
 use deep_space::{Coin, Contact};
+use futures::future::{join5, join_all};
+use futures::join;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
-use gravity_proto::gravity::{Attestation, BatchFees, Params as GravityParams};
+use gravity_proto::gravity::{
+    Attestation, BatchFees, Params as GravityParams, QueryDenomToErc20Request,
+};
 use gravity_utils::error::GravityError;
 use gravity_utils::types::{event_signatures::*, *};
 use gravity_utils::types::{SendToCosmosEvent, TransactionBatch};
@@ -50,6 +54,8 @@ pub struct EthInfo {
 lazy_static! {
     static ref GRAVITY_INFO: Arc<RwLock<Option<GravityInfo>>> = Arc::new(RwLock::new(None));
     static ref ETH_INFO: Arc<RwLock<Option<EthInfo>>> = Arc::new(RwLock::new(None));
+    static ref ERC20_METADATA: Arc<RwLock<Option<Vec<Erc20Metadata>>>> =
+        Arc::new(RwLock::new(None));
 }
 
 pub fn get_gravity_info() -> Option<GravityInfo> {
@@ -70,6 +76,15 @@ fn set_eth_info(info: EthInfo) {
     *lock = Some(info)
 }
 
+pub fn get_erc20_metadata() -> Option<Vec<Erc20Metadata>> {
+    ERC20_METADATA.read().unwrap().clone()
+}
+
+fn set_erc20_metadata(metadata: Vec<Erc20Metadata>) {
+    let mut lock = ERC20_METADATA.write().unwrap();
+    *lock = Some(metadata)
+}
+
 pub fn blockchain_info_thread() {
     info!("Starting Gravity info watcher");
 
@@ -82,26 +97,97 @@ pub fn blockchain_info_thread() {
             let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
                 .await
                 .unwrap();
-            match query_gravity_info(&contact, &mut grpc_client).await {
-                Ok(gi) => match query_eth_info(&web30, gi.params.bridge_ethereum_address).await {
-                    Ok(ei) => {
-                        set_eth_info(ei);
-                        set_gravity_info(gi);
-                        info!("Successfully updated Gravity and ETH info");
-                    }
-                    Err(e) => error!("Failed to update ETH info with {:?}", e),
-                },
-                Err(e) => error!("Failed to update Gravity info with {:?}", e),
-            }
+
+            let gravity_info = match query_gravity_info(&contact, &mut grpc_client).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Failed to update Gravity Info with {:?}", e);
+                    return;
+                }
+            };
+
+            let eth_info = query_eth_info(&web30, gravity_info.params.bridge_ethereum_address);
+            let erc20_metadata = get_all_erc20_metadata(&contact, &web30, &mut grpc_client);
+            let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
+            let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
+                (Ok(a), Ok(b)) => (a, b),
+                (_, Err(e)) => {
+                    error!("Failed to get eth info {:?}", e);
+                    return;
+                }
+                (Err(e), _) => {
+                    error!("Failed to get erc20 metadata {:?}", e);
+                    return;
+                }
+            };
+
+            set_eth_info(eth_info);
+            set_gravity_info(gravity_info);
+            set_erc20_metadata(erc20_metadata);
+            info!("Successfully updated Gravity and ETH info");
         });
         thread::sleep(LOOP_TIME);
     });
+}
+
+/// gets information about all tokens that have been bridged
+async fn get_all_erc20_metadata(
+    contact: &Contact,
+    web30: &Web3,
+    grpc_client: &mut GravityQueryClient<Channel>,
+) -> Result<Vec<Erc20Metadata>, GravityError> {
+    let all_tokens_on_gravity = contact.query_total_supply().await?;
+    let mut futs = Vec::new();
+    for token in all_tokens_on_gravity {
+        let erc20: EthAddress = if token.denom.starts_with("gravity") {
+            token.denom.trim_start_matches("gravity").parse().unwrap()
+        } else {
+            match grpc_client
+                .denom_to_erc20(QueryDenomToErc20Request { denom: token.denom })
+                .await
+            {
+                Ok(v) => v.into_inner().erc20.parse().unwrap(),
+                Err(_) => continue,
+            }
+        };
+        futs.push(get_metadata(web30, erc20));
+    }
+    let results = join_all(futs).await;
+    let mut metadata = Vec::new();
+    for r in results {
+        metadata.push(r?)
+    }
+
+    Ok(metadata)
+}
+
+async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, GravityError> {
+    let query_sender: EthAddress = "0x388C818CA8B9251b393131C08a736A67ccB19297"
+        .parse()
+        .unwrap();
+    let symbol = web30.get_erc20_symbol(erc20, query_sender);
+    let decimals = web30.get_erc20_decimals(erc20, query_sender);
+    let (symbol, decimals) = join!(symbol, decimals);
+    let (symbol, decimals) = (symbol?, decimals?);
+    Ok(Erc20Metadata {
+        address: erc20,
+        symbol,
+        decimals,
+    })
+}
+
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct Erc20Metadata {
+    address: EthAddress,
+    decimals: Uint256,
+    symbol: String,
 }
 
 async fn query_gravity_info(
     _contact: &Contact,
     grpc_client: &mut GravityQueryClient<Channel>,
 ) -> Result<GravityInfo, GravityError> {
+    // can't be easily parallelized becuase of the grpc client :(
     let pending_tx = get_pending_batch_fees(grpc_client).await?.batch_fees;
     let pending_batches = get_latest_transaction_batches(grpc_client).await?;
     let attestations = get_attestations(grpc_client, None).await?;
@@ -203,55 +289,52 @@ async fn query_eth_info(
     let latest_block = web3.eth_block_number().await?;
     let starting_block = latest_block.clone() - 1_000u16.into();
 
-    let deposits = web3
-        .check_for_events(
-            starting_block.clone(),
-            Some(latest_block.clone()),
-            vec![gravity_contract_address],
-            vec![SENT_TO_COSMOS_EVENT_SIG],
-        )
-        .await?;
-    trace!("Deposits {:?}", deposits);
+    let deposits = web3.check_for_events(
+        starting_block.clone(),
+        Some(latest_block.clone()),
+        vec![gravity_contract_address],
+        vec![SENT_TO_COSMOS_EVENT_SIG],
+    );
+    let batches = web3.check_for_events(
+        starting_block.clone(),
+        Some(latest_block.clone()),
+        vec![gravity_contract_address],
+        vec![TRANSACTION_BATCH_EXECUTED_EVENT_SIG],
+    );
+    let valsets = web3.check_for_events(
+        starting_block.clone(),
+        Some(latest_block.clone()),
+        vec![gravity_contract_address],
+        vec![VALSET_UPDATED_EVENT_SIG],
+    );
+    let erc20_deployed = web3.check_for_events(
+        starting_block.clone(),
+        Some(latest_block.clone()),
+        vec![gravity_contract_address],
+        vec![ERC20_DEPLOYED_EVENT_SIG],
+    );
+    let logic_call_executed = web3.check_for_events(
+        starting_block.clone(),
+        Some(latest_block.clone()),
+        vec![gravity_contract_address],
+        vec![LOGIC_CALL_EVENT_SIG],
+    );
+    let (deposits, batches, valsets, erc20_deployed, logic_call_executed) = join5(
+        deposits,
+        batches,
+        valsets,
+        erc20_deployed,
+        logic_call_executed,
+    )
+    .await;
 
-    let batches = web3
-        .check_for_events(
-            starting_block.clone(),
-            Some(latest_block.clone()),
-            vec![gravity_contract_address],
-            vec![TRANSACTION_BATCH_EXECUTED_EVENT_SIG],
-        )
-        .await?;
-    trace!("Batches {:?}", batches);
-
-    let valsets = web3
-        .check_for_events(
-            starting_block.clone(),
-            Some(latest_block.clone()),
-            vec![gravity_contract_address],
-            vec![VALSET_UPDATED_EVENT_SIG],
-        )
-        .await?;
-    trace!("Valsets {:?}", valsets);
-
-    let erc20_deployed = web3
-        .check_for_events(
-            starting_block.clone(),
-            Some(latest_block.clone()),
-            vec![gravity_contract_address],
-            vec![ERC20_DEPLOYED_EVENT_SIG],
-        )
-        .await?;
-    trace!("ERC20 Deployments {:?}", erc20_deployed);
-
-    let logic_call_executed = web3
-        .check_for_events(
-            starting_block.clone(),
-            Some(latest_block.clone()),
-            vec![gravity_contract_address],
-            vec![LOGIC_CALL_EVENT_SIG],
-        )
-        .await?;
-    trace!("Logic call executions {:?}", logic_call_executed);
+    let (deposits, batches, valsets, erc20_deployed, logic_call_executed) = (
+        deposits?,
+        batches?,
+        valsets?,
+        erc20_deployed?,
+        logic_call_executed?,
+    );
 
     let valsets = ValsetUpdatedEvent::from_logs(&valsets)?;
     trace!("parsed valsets {:?}", valsets);

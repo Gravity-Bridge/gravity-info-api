@@ -14,6 +14,7 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 };
 const PORT: u16 = 9000;
 
+use crate::gravity_info::get_erc20_metadata;
 use crate::{tls::*, gravity_info::get_gravity_info};
 use crate::total_suppy::get_supply_info;
 use actix_cors::Cors;
@@ -64,6 +65,16 @@ async fn get_gravity_bridge_info() -> impl Responder {
     }
 }
 
+#[get("/erc20_metadata")]
+async fn erc20_metadata() -> impl Responder {
+    // if we have already computed supply info return it, if not return an error
+    match get_erc20_metadata() {
+        Some(v) => HttpResponse::Ok().json(v),
+        None => HttpResponse::InternalServerError()
+            .json("Info not yet generated, please query in 5 minutes"),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     openssl_probe::init_ssl_cert_env_vars();
@@ -85,6 +96,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_all_supply_info)
             .service(get_eth_bridge_info)
             .service(get_gravity_bridge_info)
+            .service(erc20_metadata)
     });
 
     let server = if SSL {

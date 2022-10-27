@@ -1,22 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import './App.css';
 import {
-  Button,
-  Modal,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Label,
-  InputGroup,
-  Input,
   Spinner,
   CardBody,
   CardTitle,
-  CardText,
   Card,
   CardSubtitle,
 } from "reactstrap";
-import { BatchFees, ChainTotalSupplyNumbers, EthInfo, GravityInfo } from './types';
+import { BatchFees, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo } from './types';
 
 // 5 seconds
 const UPDATE_TIME = 5000;
@@ -30,6 +21,7 @@ function App() {
   const [gravityBridgeInfo, setGravityBridgeInfo] = useState<GravityInfo | null>(null);
   const [ethBridgeInfo, setEthBridgeInfo] = useState<EthInfo | null>(null);
   const [supplyInfo, setSupplyInfo] = useState<ChainTotalSupplyNumbers | null>(null);
+  const [erc20Metadata, setErc20Metadata] = useState<Array<Erc20Metadata> | null>(null);
 
   async function getGravityInfo() {
     let request_url = SERVER_URL + "gravity_bridge_info";
@@ -73,12 +65,27 @@ function App() {
     const json = await result.json();
     setSupplyInfo(json)
   }
+  async function getErc20Metadata() {
+    let request_url = SERVER_URL + "erc20_metadata";
+    const requestOptions: any = {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    };
+
+    const result = await fetch(request_url, requestOptions);
+    const json = await result.json();
+    setErc20Metadata(json)
+  }
 
 
   useEffect(() => {
     getDistributionInfo();
     getGravityInfo();
     getEthInfo();
+    getErc20Metadata();
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -86,12 +93,13 @@ function App() {
       getDistributionInfo();
       getGravityInfo();
       getEthInfo();
+      getErc20Metadata();
     }, UPDATE_TIME);
     return () => clearInterval(interval);
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (gravityBridgeInfo == null || ethBridgeInfo == null || supplyInfo == null) {
+  if (gravityBridgeInfo == null || ethBridgeInfo == null || supplyInfo == null || erc20Metadata == null) {
     return (
       <div className="App-header" style={{ display: "flex", flexWrap: "wrap" }}>
         <Spinner
