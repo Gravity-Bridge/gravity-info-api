@@ -1,0 +1,26 @@
+---
+- name: Copy Gravity Info site
+  synchronize:
+    src: "{{playbook_dir}}/{{host_dir}}/"
+    dest: /usr/share/nginx/{{host_dir}}/
+    delete: yes
+  become: true
+
+- name: Copy nginx config
+  template:
+    src: "info-dash.conf.j2"
+    dest: /etc/nginx/conf.d/info-dash.conf
+
+# If this fails check out status of certbot: https://letsencrypt.status.io/
+- name: ISSUE CERT
+  shell: certbot --nginx -d {{domain}} --email justin@althea.net --noninteractive --agree-tos --redirect --expand
+
+- name: Setup cron
+  command: 'echo "0 0,12 * * * root python3 -c ''import random; import time; time.sleep(random.random() * 3600)'' && /usr/local/bin/certbot-auto renew -q" | sudo tee -a /etc/crontab > /dev/null'
+
+- name: Set Nginx to run on startup
+  systemd:
+    name: nginx
+    state: restarted
+    enabled: yes
+  become: true

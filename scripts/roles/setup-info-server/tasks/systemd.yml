@@ -1,0 +1,33 @@
+---
+- name: Template service file
+  template:
+    src: gravity-info-server.service.j2
+    dest: /etc/systemd/system/gravity-info-server.service
+  become: true
+
+- name: Set the info server to run on startup
+  systemd:
+    daemon_reload: yes
+    name: gravity-info-server
+    state: restarted
+    enabled: yes
+  become: true
+
+- name: Wait for Quick crashes
+  pause:
+    seconds: 10
+
+- name: Check if the info server is running
+  command: systemctl status gravity-info-server
+  ignore_errors: yes
+  changed_when: false
+  register: service_gravity_info_server_status
+
+- name: Report status of Gravity info server
+  fail:
+    msg: |
+      Service gravity-info-server is not running.
+      Output of `systemctl status gravity-info-server`:
+      {{ service_gravity_info_server_status.stdout }}
+      {{ service_gravity_info_server_status.stderr }}
+  when: service_gravity_info_server_status is failed

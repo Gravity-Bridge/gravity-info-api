@@ -1,1 +1,3 @@
 gravity-info-server/target/*
+scripts/gravity-info-server
+scripts/gravity-info-dash/*

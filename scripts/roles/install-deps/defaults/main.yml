@@ -1,0 +1,43 @@
+# Known requirements per distro, please expand if you encounter breakage
+known_distros:
+  - CentOS
+  - Fedora
+  - Ubuntu
+  - Debian
+  - Red Hat Enterprise Linux
+  - Arch Linux
+
+debian_deps:
+  - nginx
+  - pigz
+  - certbot
+  - python3-certbot-nginx
+  - rsync
+
+centos_deps:
+  - nginx
+  - pigz
+  - certbot
+  - python3-certbot-nginx
+  - rsync
+
+ubuntu_deps:
+  - nginx
+  - pigz
+  - certbot
+  - python3-certbot-nginx
+  - rsync
+
+fedora_deps:
+  - nginx
+  - pigz
+  - certbot
+  - python3-certbot-nginx
+  - rsync
+
+arch_deps:
+  - nginx
+  - pigz
+  - certbot
+  - python3-certbot-nginx
+  - rsync

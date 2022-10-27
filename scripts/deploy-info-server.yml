@@ -1,0 +1,10 @@
+# Sets up the gravity info server plus an nginx server to host the frontend
+
+- name: Install Gravity Info server
+  hosts: gravity_info_server
+  user: root
+  roles:
+    - install-deps
+    - setup-nginx
+    - setup-info-server
+

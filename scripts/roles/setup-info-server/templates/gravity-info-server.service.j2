@@ -1,0 +1,14 @@
+# This is a systemd service for the Gravity Bridge info server baackend
+[Unit]
+Description="Gravity Info Server"
+
+[Service]
+Type=simple
+RestartSec=60
+LimitNOFILE=65536
+Restart=always
+Environment="RUST_LOG=INFO"
+ExecStart=/usr/bin/gravity-info-server
+
+[Install]
+WantedBy=default.target
