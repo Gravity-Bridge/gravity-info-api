@@ -872,6 +872,7 @@ version = "0.1.0"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "clarity",
  "cosmos_gravity",
  "deep_space",
  "env_logger",
@@ -882,6 +883,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num256",
+ "openssl-probe",
  "rustls",
  "rustls-pemfile 0.3.0",
  "serde",

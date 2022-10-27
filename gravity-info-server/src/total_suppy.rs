@@ -4,7 +4,7 @@
 //! to effectively query all the data in a reasonable amount of time and compute the result locally
 //! This code provides a generic way to compute the total liquid supply for a cosmos chain across all vesting types
 
-use crate::query_loop::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
+use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
 use actix_web::rt::System;
 use deep_space::client::types::AccountType;
 use deep_space::client::PAGE;
