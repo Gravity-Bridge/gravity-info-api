@@ -33,7 +33,7 @@ export type Coin = {
 
 export type Erc20Token = {
     amount: number,
-    token_contract_address: string
+    contract: string
 }
 
 export type TransactionBatch = {
@@ -130,5 +130,6 @@ export type EthInfo = {
 export type Erc20Metadata = {
     address: string,
     decimals: number,
-    symbol : string,
+    symbol: string,
+    exchange_rate: number | null
 }

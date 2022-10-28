@@ -561,7 +561,7 @@ dependencies = [
 [[package]]
 name = "cosmos_gravity"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge#62b5a69b802535de712019c19e21be58e5d42509"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
 dependencies = [
  "bytes",
  "clarity",
@@ -611,9 +611,9 @@ dependencies = [
 
 [[package]]
 name = "deep_space"
-version = "2.14.1"
+version = "2.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "212d42a096070ebdf4b2db2ecaabb5cb49309c5f26305d718262b50123a566f2"
+checksum = "1ecd93c72df46852e98d19f36b20a6981a33c71cf7c2f90307cc4a34aecf23e5"
 dependencies = [
  "base64",
  "bech32",
@@ -705,7 +705,7 @@ dependencies = [
 [[package]]
 name = "ethereum_gravity"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge#62b5a69b802535de712019c19e21be58e5d42509"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
 dependencies = [
  "clarity",
  "deep_space",
@@ -895,7 +895,7 @@ dependencies = [
 [[package]]
 name = "gravity_proto"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge#62b5a69b802535de712019c19e21be58e5d42509"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
 dependencies = [
  "cosmos-sdk-proto-althea",
  "deep_space",
@@ -907,7 +907,7 @@ dependencies = [
 [[package]]
 name = "gravity_utils"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge#62b5a69b802535de712019c19e21be58e5d42509"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
 dependencies = [
  "clarity",
  "deep_space",

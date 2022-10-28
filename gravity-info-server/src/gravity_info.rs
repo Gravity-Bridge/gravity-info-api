@@ -8,13 +8,14 @@ use cosmos_gravity::query::{
     get_attestations, get_gravity_params, get_latest_transaction_batches, get_pending_batch_fees,
 };
 use deep_space::{Coin, Contact};
-use futures::future::{join5, join_all};
+use futures::future::{join3, join5, join_all};
 use futures::join;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_proto::gravity::{
     Attestation, BatchFees, Params as GravityParams, QueryDenomToErc20Request,
 };
 use gravity_utils::error::GravityError;
+use gravity_utils::num_conversion::one_eth;
 use gravity_utils::types::{event_signatures::*, *};
 use gravity_utils::types::{SendToCosmosEvent, TransactionBatch};
 use log::{error, info, trace};
@@ -23,7 +24,9 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use tonic::transport::channel::Channel;
+use web30::amm::UNISWAP_STANDARD_POOL_FEES;
 use web30::client::Web3;
+use web30::jsonrpc::error::Web3Error;
 
 const LOOP_TIME: Duration = Duration::from_secs(30);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(4);
@@ -167,12 +170,18 @@ async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, 
         .unwrap();
     let symbol = web30.get_erc20_symbol(erc20, query_sender);
     let decimals = web30.get_erc20_decimals(erc20, query_sender);
-    let (symbol, decimals) = join!(symbol, decimals);
+    let price = get_usdc_price(query_sender, erc20, one_eth(), &web30);
+    let (symbol, decimals, price) = join3(symbol, decimals, price).await;
     let (symbol, decimals) = (symbol?, decimals?);
+    let exchange_rate = match price {
+        Ok(v) => Some(v),
+        Err(_) => None,
+    };
     Ok(Erc20Metadata {
         address: erc20,
         symbol,
         decimals,
+        exchange_rate,
     })
 }
 
@@ -181,6 +190,8 @@ pub struct Erc20Metadata {
     address: EthAddress,
     decimals: Uint256,
     symbol: String,
+    /// the amount of this token worth one DAI (one dollar)
+    exchange_rate: Option<Uint256>,
 }
 
 async fn query_gravity_info(
@@ -354,4 +365,57 @@ async fn query_eth_info(
         erc20_deploys,
         logic_calls: logic_calls,
     })
+}
+
+/// utility function, gets the price of a given ER20 token in uniswap in USDC given the erc20 address and amount
+/// tires all uniswap v3 fee amounts
+pub async fn get_usdc_price(
+    pubkey: EthAddress,
+    token: EthAddress,
+    amount: Uint256,
+    web3: &Web3,
+) -> Result<Uint256, Web3Error> {
+    const FIVE_PERCENT: f64 = 0.05f64; // used as an acceptable amount of slippage
+    let usdc_contract: EthAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        .parse()
+        .unwrap();
+    if token == usdc_contract {
+        return Ok(amount);
+    } else if amount == 0u8.into() {
+        return Ok(0u8.into());
+    }
+
+    // dummy error
+    let mut res = Err(Web3Error::TransactionTimeout);
+    for fee in UNISWAP_STANDARD_POOL_FEES.clone().into_iter() {
+        let slippage_sqrt_price = web3
+            .get_v3_slippage_sqrt_price(pubkey, token, usdc_contract, Some(fee.clone()), FIVE_PERCENT)
+            .await;
+        let slippage_sqrt_price = match slippage_sqrt_price {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let price = web3
+            .get_uniswap_v3_price(
+                pubkey,
+                token,
+                usdc_contract,
+                Some(fee),
+                amount.clone(),
+                Some(slippage_sqrt_price),
+                None,
+            )
+            .await;
+        if price.is_ok() {
+            return price;
+        }
+        let price = web3.get_uniswap_v2_price(pubkey, token, usdc_contract, amount.clone(), None)
+            .await;
+        if price.is_ok() {
+            return price;
+        } else {
+            res = price;
+        }
+    }
+    res
 }
