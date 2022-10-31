@@ -174,7 +174,7 @@ function App() {
             </CardTitle>
             <CardSubtitle>These transactions are in batches and waiting to be relayed to Ethereum</CardSubtitle>
             {
-              gravityBridgeInfo.pending_batches.map((batch: TransactionBatch) => (<Card>
+              getNotExecutedBatches(gravityBridgeInfo,ethBridgeInfo).map((batch: TransactionBatch) => (<Card>
                 <CardBody>
                   <CardTitle tag="h5"> Batch #{batch.nonce}  {getMetadataFromList(batch.token_contract, erc20Metadata)?.symbol}</CardTitle>
                   <div style={{fontSize: 15}}>Total Fees: {amountToFraction(batch.token_contract, batch.total_fee.amount, erc20Metadata)}</div>
@@ -274,11 +274,35 @@ function amountToFraction(erc20: string, amount: number, metadata: Array<Erc20Me
   if (tokenInfo.exchange_rate == null) {
     return fraction.toFixed(2);
   } else {
-    //let dollar_value = amount / tokenInfo.exchange_rate;
-    //return fraction.toFixed(2) + "/ $" + dollar_value.toFixed(2)
-    // todo fix backend price
-    return fraction.toFixed(2);
+    let dollar_value = fraction * (tokenInfo.exchange_rate / 10 ** 6);
+    return "$" + dollar_value.toFixed(2)
   }
+}
+
+/// Takes both info structs to cross compare and display batches that have not yet been
+/// executed without waiting 20 minutes for Gravity to know that a batch has been executed
+/// on Ethereum
+function getNotExecutedBatches(gravityBridgeInfo: GravityInfo, ethBridgeInfo: EthInfo) {
+  let ret = new Array;
+  var arrayLength = gravityBridgeInfo.pending_batches.length;
+  for (var i = 0; i < arrayLength; i++) {
+    if (!alreadyExecuted(gravityBridgeInfo.pending_batches[i].nonce, ethBridgeInfo)) {
+      ret.push(gravityBridgeInfo.pending_batches[i])
+    }
+  }
+  return ret
+}
+
+/// Checks if a batch has already executed on Ethereum but GB does not
+/// know it yet by searching the eth events history
+function alreadyExecuted(batch_nonce: number, ethBridgeInfo: EthInfo) {
+  var arrayLength = ethBridgeInfo.batch_events.length;
+  for (var i = 0; i < arrayLength; i++) {
+    if (ethBridgeInfo.batch_events[i].batch_nonce == batch_nonce) {
+      return true
+    }
+  }
+  return false
 }
 
 export default App;

@@ -8,14 +8,13 @@ use cosmos_gravity::query::{
     get_attestations, get_gravity_params, get_latest_transaction_batches, get_pending_batch_fees,
 };
 use deep_space::{Coin, Contact};
-use futures::future::{join3, join5, join_all};
+use futures::future::{join, join5, join_all};
 use futures::join;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_proto::gravity::{
     Attestation, BatchFees, Params as GravityParams, QueryDenomToErc20Request,
 };
 use gravity_utils::error::GravityError;
-use gravity_utils::num_conversion::one_eth;
 use gravity_utils::types::{event_signatures::*, *};
 use gravity_utils::types::{SendToCosmosEvent, TransactionBatch};
 use log::{error, info, trace};
@@ -24,9 +23,8 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use tonic::transport::channel::Channel;
-use web30::amm::UNISWAP_STANDARD_POOL_FEES;
+use web30::amm::USDC_CONTRACT_ADDRESS;
 use web30::client::Web3;
-use web30::jsonrpc::error::Web3Error;
 
 const LOOP_TIME: Duration = Duration::from_secs(30);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(4);
@@ -52,6 +50,8 @@ pub struct EthInfo {
     pub valset_updates: Vec<ValsetUpdatedEvent>,
     pub erc20_deploys: Vec<Erc20DeployedEvent>,
     pub logic_calls: Vec<LogicCallExecutedEvent>,
+    /// total volume in the last 24 hours in $
+    pub total_volume: Uint256,
 }
 
 lazy_static! {
@@ -170,12 +170,41 @@ async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, 
         .unwrap();
     let symbol = web30.get_erc20_symbol(erc20, query_sender);
     let decimals = web30.get_erc20_decimals(erc20, query_sender);
-    let price = get_usdc_price(query_sender, erc20, one_eth(), &web30);
-    let (symbol, decimals, price) = join3(symbol, decimals, price).await;
+    let (symbol, decimals) = join(symbol, decimals).await;
     let (symbol, decimals) = (symbol?, decimals?);
-    let exchange_rate = match price {
-        Ok(v) => Some(v),
-        Err(_) => None,
+
+    // the token is USDC, no more querying required
+    if erc20 == *USDC_CONTRACT_ADDRESS {
+        return Ok(Erc20Metadata {
+            address: erc20,
+            symbol,
+            decimals,
+            exchange_rate: Some(10u128.pow(6).into()),
+        });
+    }
+
+    let downcast_decimals: u32 = decimals.to_string().parse().unwrap();
+    // one of whatever this token is
+    let one: Uint256 = 10u128.pow(downcast_decimals).into();
+
+    let pricev3 = web30.get_uniswap_v3_price_with_retries(
+        query_sender,
+        erc20,
+        *USDC_CONTRACT_ADDRESS,
+        one.clone(),
+        None,
+        None,
+    );
+    let pricev2 =
+        web30.get_uniswap_v2_price(query_sender, erc20, *USDC_CONTRACT_ADDRESS, one, None);
+
+    let (pricev3, pricev2) = join(pricev3, pricev2).await;
+
+    // the value of one unit of whatever this is in usdc
+    let exchange_rate = match (pricev3, pricev2) {
+        (Ok(r), _) => Some(r),
+        (_, Ok(r)) => Some(r),
+        (Err(_), Err(_)) => None,
     };
     Ok(Erc20Metadata {
         address: erc20,
@@ -358,64 +387,14 @@ async fn query_eth_info(
     let logic_calls = LogicCallExecutedEvent::from_logs(&logic_call_executed)?;
     trace!("logic call executions {:?}", logic_calls);
 
+    let mut total_volume = 0u8.into();
+
     Ok(EthInfo {
         deposit_events: deposits,
         batch_events: withdraws,
         valset_updates: valsets,
         erc20_deploys,
         logic_calls: logic_calls,
+        total_volume,
     })
-}
-
-/// utility function, gets the price of a given ER20 token in uniswap in USDC given the erc20 address and amount
-/// tires all uniswap v3 fee amounts
-pub async fn get_usdc_price(
-    pubkey: EthAddress,
-    token: EthAddress,
-    amount: Uint256,
-    web3: &Web3,
-) -> Result<Uint256, Web3Error> {
-    const FIVE_PERCENT: f64 = 0.05f64; // used as an acceptable amount of slippage
-    let usdc_contract: EthAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-        .parse()
-        .unwrap();
-    if token == usdc_contract {
-        return Ok(amount);
-    } else if amount == 0u8.into() {
-        return Ok(0u8.into());
-    }
-
-    // dummy error
-    let mut res = Err(Web3Error::TransactionTimeout);
-    for fee in UNISWAP_STANDARD_POOL_FEES.clone().into_iter() {
-        let slippage_sqrt_price = web3
-            .get_v3_slippage_sqrt_price(pubkey, token, usdc_contract, Some(fee.clone()), FIVE_PERCENT)
-            .await;
-        let slippage_sqrt_price = match slippage_sqrt_price {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        let price = web3
-            .get_uniswap_v3_price(
-                pubkey,
-                token,
-                usdc_contract,
-                Some(fee),
-                amount.clone(),
-                Some(slippage_sqrt_price),
-                None,
-            )
-            .await;
-        if price.is_ok() {
-            return price;
-        }
-        let price = web3.get_uniswap_v2_price(pubkey, token, usdc_contract, amount.clone(), None)
-            .await;
-        if price.is_ok() {
-            return price;
-        } else {
-            res = price;
-        }
-    }
-    res
 }
