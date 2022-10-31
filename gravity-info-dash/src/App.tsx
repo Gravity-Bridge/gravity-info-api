@@ -8,7 +8,7 @@ import {
   CardSubtitle,
   Table,
 } from "reactstrap";
-import { BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, TransactionBatch } from './types';
+import { BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, SendToCosmosEvent, TransactionBatch } from './types';
 import { type } from '@testing-library/user-event/dist/type';
 
 // 5 seconds
@@ -16,7 +16,7 @@ const UPDATE_TIME = 5000;
 
 const BACKEND_PORT = 9000;
 export const SERVER_URL =
-  "https://" + window.location.hostname + ":" + BACKEND_PORT + "/";
+  "http://" + window.location.hostname + ":" + BACKEND_PORT + "/";
 
 function App() {
   document.title = "Gravity Bridge Info"
@@ -101,7 +101,7 @@ function App() {
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (gravityBridgeInfo == null || typeof(gravityBridgeInfo) === "string" || ethBridgeInfo == null || supplyInfo == null || typeof(supplyInfo) === "string" || erc20Metadata == null) {
+  if (gravityBridgeInfo == null || typeof (gravityBridgeInfo) === "string" || ethBridgeInfo == null || supplyInfo == null || typeof (supplyInfo) === "string" || erc20Metadata == null) {
     return (
       <div className="App-header" style={{ display: "flex", flexWrap: "wrap" }}>
         <Spinner
@@ -117,7 +117,6 @@ function App() {
   let bridge_address = gravityBridgeInfo.params.bridge_ethereum_address;
   let etherscanBase = "https://etherscan.io/address/"
   let etherscanBlockBase = "https://etherscan.io/block/"
-  let mintscanBase = "https://mintscan.io/gravity-bridge/account/"
   let etherscanLink = etherscanBase + bridge_address;
 
   return (
@@ -128,9 +127,11 @@ function App() {
             <CardTitle tag="h4">
               Transaction Queue
             </CardTitle>
-            <CardSubtitle>These transactions are not yet in batches, a batch will be reqested when the fee amount exceeds the cost to execute on Ethereum</CardSubtitle>
+            <CardSubtitle
+              style={{ fontSize: 15 }}
+            >These transactions are not yet in batches, a batch will be reqested when the fee amount exceeds the cost to execute on Ethereum</CardSubtitle>
             <Table
-              style={{ borderSpacing: 20 }}
+              style={{ borderSpacing: 10, fontSize: 15 }}
             >
               <thead>
                 <tr>
@@ -172,13 +173,15 @@ function App() {
             <CardTitle tag="h4">
               Batch Queue
             </CardTitle>
-            <CardSubtitle>These transactions are in batches and waiting to be relayed to Ethereum</CardSubtitle>
+            <CardSubtitle
+              style={{ fontSize: 15 }}
+            >These transactions are in batches and waiting to be relayed to Ethereum</CardSubtitle>
             {
-              getNotExecutedBatches(gravityBridgeInfo,ethBridgeInfo).map((batch: TransactionBatch) => (<Card>
+              getNotExecutedBatches(gravityBridgeInfo, ethBridgeInfo).map((batch: TransactionBatch) => (<Card>
                 <CardBody>
                   <CardTitle tag="h5"> Batch #{batch.nonce}  {getMetadataFromList(batch.token_contract, erc20Metadata)?.symbol}</CardTitle>
-                  <div style={{fontSize: 15}}>Total Fees: {amountToFraction(batch.token_contract, batch.total_fee.amount, erc20Metadata)}</div>
-                  <div style={{fontSize: 15}}>Timeout: <a href={etherscanBlockBase+batch.batch_timeout}>{batch.batch_timeout}</a></div>
+                  <div style={{ fontSize: 15 }}>Total Fees: {amountToFraction(batch.token_contract, batch.total_fee.amount, erc20Metadata)}</div>
+                  <div style={{ fontSize: 15 }}>Timeout: <a href={etherscanBlockBase + batch.batch_timeout}>{batch.batch_timeout}</a></div>
                   <Table
                     style={{ borderSpacing: 10, fontSize: 15 }}
                   >
@@ -202,7 +205,7 @@ function App() {
                             <a href={etherscanBase + batchTx.destination}>{batchTx.destination}</a>
                           </td>
                           <td>
-                            <a href={mintscanBase + batchTx.sender}>{batchTx.sender}</a>
+                            <a href={cosmosAddressToExplorerLink(batchTx.sender)}>{batchTx.sender}</a>
                           </td>
                           <td>
                             {amountToFraction(batchTx.erc20_token.contract, batchTx.erc20_token.amount, erc20Metadata)}/
@@ -220,17 +223,69 @@ function App() {
         </Card>
       </div>
       <div style={{ padding: 5 }}>
+        <Card className="ParametersCard" style={{ borderRadius: 8, padding: 20 }}>
+          <CardBody>
+            <CardTitle tag="h4">
+              Incoming transactions
+            </CardTitle>
+            <Table
+              style={{ borderSpacing: 10, fontSize: 15 }}
+            >
+              <thead>
+                <tr>
+                  <th>
+                    Token
+                  </th>
+                  <th>
+                    Value
+                  </th>
+                  <th>
+                    Source
+                  </th>
+                  <th>
+                    Destination
+                  </th>
+                  <th>
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  ethBridgeInfo.deposit_events.map((sendToCosmos: SendToCosmosEvent) => (<tr>
+                    <td>
+                      {getMetadataFromList(sendToCosmos.erc20, erc20Metadata)?.symbol}
+                    </td>
+                    <td>
+                      {amountToFraction(sendToCosmos.erc20, sendToCosmos.amount, erc20Metadata)}
+                    </td>
+                    <td>
+                      <a href={etherscanBase + sendToCosmos.sender}>{sendToCosmos.sender}</a>
+                    </td>
+                    <td>
+                      <a href={cosmosAddressToExplorerLink(sendToCosmos.destination)}>{sendToCosmos.destination}</a>
+                    </td>
+
+                  </tr>))
+                }
+
+              </tbody>
+            </Table>
+          </CardBody>
+        </Card>
+      </div>
+      <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 25 }}>
           <CardBody>
             <CardTitle tag="h4">
               Gravity Supply Info
             </CardTitle>
-            <div style={{fontSize: 15}}>Liquid (Not Vesting): {(supplyInfo.total_liquid_supply / 10**12).toFixed(2)}M Graviton</div>
-            <div style={{fontSize: 15}}>Liquid (Not Vesting) and staked: {(supplyInfo.total_nonvesting_staked / 10**12).toFixed(2)}M Graviton</div>
-            <div style={{fontSize: 15}}>Unclaimed staking rewards: {(supplyInfo.total_unclaimed_rewards / 10**12).toFixed(2)}M Graviton</div>
-            <div style={{fontSize: 15}}>Unvested: {(supplyInfo.total_vesting / 10**12).toFixed(2)}M Graviton</div>
-            <div style={{fontSize: 15}}>Unvested Staked: {(supplyInfo.total_vesting_staked / 10**12).toFixed(2)}M Graviton</div>
-            <div style={{fontSize: 15}}>Vested: {(supplyInfo.total_vested / 10**12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Liquid (Not Vesting): {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Liquid (Not Vesting) and staked: {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Unclaimed staking rewards: {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Unvested: {(supplyInfo.total_vesting / 10 ** 12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Unvested Staked: {(supplyInfo.total_vesting_staked / 10 ** 12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M Graviton</div>
           </CardBody>
         </Card>
       </div>
@@ -240,9 +295,9 @@ function App() {
             <CardTitle tag="h4">
               Current Gravity Parameters
             </CardTitle>
-            <div style={{fontSize: 15}}>Ethereum Contract Address: <a href={etherscanLink}>{bridge_address}</a></div>
-            <div style={{fontSize: 15}}>Bridge Active: {String(gravityBridgeInfo.params.bridge_active)}</div>
-            <div style={{fontSize: 15}}>Target Batch Timeout: {(gravityBridgeInfo.params.target_batch_timeout / 1000) / (60*60)} hours</div>
+            <div style={{ fontSize: 15 }}>Ethereum Contract Address: <a href={etherscanLink}>{bridge_address}</a></div>
+            <div style={{ fontSize: 15 }}>Bridge Active: {String(gravityBridgeInfo.params.bridge_active)}</div>
+            <div style={{ fontSize: 15 }}>Target Batch Timeout: {(gravityBridgeInfo.params.target_batch_timeout / 1000) / (60 * 60)} hours</div>
           </CardBody>
         </Card>
       </div>
@@ -303,6 +358,28 @@ function alreadyExecuted(batch_nonce: number, ethBridgeInfo: EthInfo) {
     }
   }
   return false
+}
+
+/// Takes various cosmos addresses to create a proper mintscan link
+function cosmosAddressToExplorerLink(input: string) {
+  let gravBase = "https://mintscan.io/gravity-bridge/account/"
+  let osmoBase = "https://mintscan.io/osmosis/account/"
+  let crescentBase = "https://mintscan.io/crescent/account/"
+  let cantoBase = "https://explorer.nodestake.top/canto/account/"
+  let mantleBase = "https://mintscan.io/mantle/account/"
+  if(input.startsWith("gravity")) {
+    return gravBase + input
+  } else if (input.startsWith("canto")) {
+    return cantoBase + input
+  } else if (input.startsWith("osmosis")) {
+    return osmoBase + input
+  } else if (input.startsWith("cre")) {
+    return crescentBase + input
+  } else if (input.startsWith("mantle")) {
+    return mantleBase + input
+  } else {
+    return input
+  }
 }
 
 export default App;
