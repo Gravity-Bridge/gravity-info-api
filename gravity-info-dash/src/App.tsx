@@ -50,7 +50,12 @@ function App() {
     };
 
     const result = await fetch(request_url, requestOptions);
-    const json = await result.json();
+    const json: EthInfo = await result.json();
+    // reverse so these show up in reverse cronological order
+    json.batch_events.reverse()
+    json.deposit_events.reverse()
+    json.logic_calls.reverse()
+    json.valset_updates.reverse()
     setEthBridgeInfo(json)
   }
   async function getDistributionInfo() {
@@ -298,10 +303,10 @@ function App() {
             </CardTitle>
             <div style={{ fontSize: 15 }}>Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M</div>
             <div style={{ fontSize: 15 }}>Daily Inflow ${(volumeInfo.daily_inflow / 10 ** 6).toFixed(2)}M</div>
-            <div style={{ fontSize: 15 }}>Daily Outflow ${(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}</div>
-            <div style={{ fontSize: 15 }}>Weekly Volume ${(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}</div>
-            <div style={{ fontSize: 15 }}>Weekly Inflow ${(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}</div>
-            <div style={{ fontSize: 15 }}>Weekly Outflow ${(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}</div>
+            <div style={{ fontSize: 15 }}>Daily Outflow ${(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}M</div>
+            <div style={{ fontSize: 15 }}>Weekly Volume ${(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}M</div>
+            <div style={{ fontSize: 15 }}>Weekly Inflow ${(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}M</div>
+            <div style={{ fontSize: 15 }}>Weekly Outflow ${(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}M</div>
           </CardBody>
         </Card>
       </div>
