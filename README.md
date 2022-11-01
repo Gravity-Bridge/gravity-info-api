@@ -4,6 +4,8 @@ This repo contains frontend and backend code for deploying a Gravity information
 
 This server computes and displays info that would be otherwise difficult to access or compute. Such as daily and weekly bridge volume, vesting info, and parsed out transfer destinations.
 
+Issues and pull requests for new endpoints or information formats are welcome.
+
 ## API Docs
 
 ### /bridge_volume
