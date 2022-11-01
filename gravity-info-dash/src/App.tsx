@@ -8,15 +8,14 @@ import {
   CardSubtitle,
   Table,
 } from "reactstrap";
-import { BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, SendToCosmosEvent, TransactionBatch } from './types';
-import { type } from '@testing-library/user-event/dist/type';
+import { BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, SendToCosmosEvent, TransactionBatch, VolumeInfo } from './types';
 
 // 5 seconds
 const UPDATE_TIME = 5000;
 
 const BACKEND_PORT = 9000;
 export const SERVER_URL =
-  "http://" + window.location.hostname + ":" + BACKEND_PORT + "/";
+  "https://" + window.location.hostname + ":" + BACKEND_PORT + "/";
 
 function App() {
   document.title = "Gravity Bridge Info"
@@ -24,6 +23,7 @@ function App() {
   const [ethBridgeInfo, setEthBridgeInfo] = useState<EthInfo | null>(null);
   const [supplyInfo, setSupplyInfo] = useState<ChainTotalSupplyNumbers | null>(null);
   const [erc20Metadata, setErc20Metadata] = useState<Array<Erc20Metadata> | null>(null);
+  const [volumeInfo, setVolumeInfo] = useState<VolumeInfo | null>(null);
 
   async function getGravityInfo() {
     let request_url = SERVER_URL + "gravity_bridge_info";
@@ -81,6 +81,20 @@ function App() {
     const json = await result.json();
     setErc20Metadata(json)
   }
+  async function getVolumeInfo() {
+    let request_url = SERVER_URL + "bridge_volume";
+    const requestOptions: any = {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    };
+
+    const result = await fetch(request_url, requestOptions);
+    const json = await result.json();
+    setVolumeInfo(json)
+  }
 
 
   useEffect(() => {
@@ -88,6 +102,7 @@ function App() {
     getGravityInfo();
     getEthInfo();
     getErc20Metadata();
+    getVolumeInfo();
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -96,12 +111,13 @@ function App() {
       getGravityInfo();
       getEthInfo();
       getErc20Metadata();
+      getVolumeInfo();
     }, UPDATE_TIME);
     return () => clearInterval(interval);
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (gravityBridgeInfo == null || typeof (gravityBridgeInfo) === "string" || ethBridgeInfo == null || supplyInfo == null || typeof (supplyInfo) === "string" || erc20Metadata == null) {
+  if (gravityBridgeInfo == null || typeof (gravityBridgeInfo) === "string" || ethBridgeInfo == null || supplyInfo == null || typeof (supplyInfo) === "string" || erc20Metadata == null || volumeInfo == null || typeof (volumeInfo) === "string") {
     return (
       <div className="App-header" style={{ display: "flex", flexWrap: "wrap" }}>
         <Spinner
@@ -278,6 +294,21 @@ function App() {
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 25 }}>
           <CardBody>
             <CardTitle tag="h4">
+              Gravity Volume
+            </CardTitle>
+            <div style={{ fontSize: 15 }}>Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M</div>
+            <div style={{ fontSize: 15 }}>Daily Inflow ${(volumeInfo.daily_inflow / 10 ** 6).toFixed(2)}M</div>
+            <div style={{ fontSize: 15 }}>Daily Outflow ${(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}</div>
+            <div style={{ fontSize: 15 }}>Weekly Volume ${(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}</div>
+            <div style={{ fontSize: 15 }}>Weekly Inflow ${(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}</div>
+            <div style={{ fontSize: 15 }}>Weekly Outflow ${(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}</div>
+          </CardBody>
+        </Card>
+      </div>
+      <div style={{ padding: 5 }}>
+        <Card className="ParametersCard" style={{ borderRadius: 8, padding: 25 }}>
+          <CardBody>
+            <CardTitle tag="h4">
               Gravity Supply Info
             </CardTitle>
             <div style={{ fontSize: 15 }}>Liquid (Not Vesting): {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M Graviton</div>
@@ -338,7 +369,7 @@ function amountToFraction(erc20: string, amount: number, metadata: Array<Erc20Me
 /// executed without waiting 20 minutes for Gravity to know that a batch has been executed
 /// on Ethereum
 function getNotExecutedBatches(gravityBridgeInfo: GravityInfo, ethBridgeInfo: EthInfo) {
-  let ret = new Array;
+  let ret = [];
   var arrayLength = gravityBridgeInfo.pending_batches.length;
   for (var i = 0; i < arrayLength; i++) {
     if (!alreadyExecuted(gravityBridgeInfo.pending_batches[i].nonce, ethBridgeInfo)) {
@@ -353,7 +384,7 @@ function getNotExecutedBatches(gravityBridgeInfo: GravityInfo, ethBridgeInfo: Et
 function alreadyExecuted(batch_nonce: number, ethBridgeInfo: EthInfo) {
   var arrayLength = ethBridgeInfo.batch_events.length;
   for (var i = 0; i < arrayLength; i++) {
-    if (ethBridgeInfo.batch_events[i].batch_nonce == batch_nonce) {
+    if (ethBridgeInfo.batch_events[i].batch_nonce === batch_nonce) {
       return true
     }
   }
@@ -367,7 +398,7 @@ function cosmosAddressToExplorerLink(input: string) {
   let crescentBase = "https://mintscan.io/crescent/account/"
   let cantoBase = "https://explorer.nodestake.top/canto/account/"
   let mantleBase = "https://mintscan.io/mantle/account/"
-  if(input.startsWith("gravity")) {
+  if (input.startsWith("gravity")) {
     return gravBase + input
   } else if (input.startsWith("canto")) {
     return cantoBase + input

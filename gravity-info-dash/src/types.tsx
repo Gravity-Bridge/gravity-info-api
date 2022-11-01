@@ -125,6 +125,7 @@ export type EthInfo = {
     valset_updates: Array<ValsetUpdatedEvent>,
     erc20_deploys: Array<Erc20DeployedEvent>,
     logic_calls: Array<LogicCallExecutedEvent>,
+    daily_volume: Number
 }
 
 export type Erc20Metadata = {
@@ -132,4 +133,13 @@ export type Erc20Metadata = {
     decimals: number,
     symbol: string,
     exchange_rate: number | null
+}
+
+export type VolumeInfo = {
+    daily_volume: number,
+    daily_inflow: number,
+    daily_outflow: number,
+    weekly_volume: number,
+    weekly_inflow: number,
+    weekly_outflow: number,
 }

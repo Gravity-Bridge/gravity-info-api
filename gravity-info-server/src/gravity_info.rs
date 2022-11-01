@@ -9,7 +9,6 @@ use cosmos_gravity::query::{
 };
 use deep_space::{Coin, Contact};
 use futures::future::{join, join5, join_all};
-use futures::join;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_proto::gravity::{
     Attestation, BatchFees, Params as GravityParams, QueryDenomToErc20Request,
@@ -25,9 +24,10 @@ use std::time::Duration;
 use tonic::transport::channel::Channel;
 use web30::amm::USDC_CONTRACT_ADDRESS;
 use web30::client::Web3;
+use futures::join;
 
 const LOOP_TIME: Duration = Duration::from_secs(30);
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(4);
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 pub const GRAVITY_NODE_GRPC: &str = "http://gravitychain.io:9090";
 pub const GRAVITY_PREFIX: &str = "gravity";
 pub const ETH_NODE_RPC: &str = "https://eth.althea.net";
@@ -50,8 +50,6 @@ pub struct EthInfo {
     pub valset_updates: Vec<ValsetUpdatedEvent>,
     pub erc20_deploys: Vec<Erc20DeployedEvent>,
     pub logic_calls: Vec<LogicCallExecutedEvent>,
-    /// total volume in the last 24 hours in $
-    pub total_volume: Uint256,
 }
 
 lazy_static! {
@@ -108,7 +106,6 @@ pub fn blockchain_info_thread() {
                     return;
                 }
             };
-
             let eth_info = query_eth_info(&web30, gravity_info.params.bridge_ethereum_address);
             let erc20_metadata = get_all_erc20_metadata(&contact, &web30, &mut grpc_client);
             let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
@@ -216,11 +213,11 @@ async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, 
 
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct Erc20Metadata {
-    address: EthAddress,
-    decimals: Uint256,
-    symbol: String,
+    pub address: EthAddress,
+    pub decimals: Uint256,
+    pub symbol: String,
     /// the amount of this token worth one DAI (one dollar)
-    exchange_rate: Option<Uint256>,
+    pub exchange_rate: Option<Uint256>,
 }
 
 async fn query_gravity_info(
@@ -327,7 +324,7 @@ async fn query_eth_info(
     gravity_contract_address: EthAddress,
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
-    let starting_block = latest_block.clone() - 1_000u16.into();
+    let starting_block = latest_block.clone() - 7_200u16.into();
 
     let deposits = web3.check_for_events(
         starting_block.clone(),
@@ -387,14 +384,11 @@ async fn query_eth_info(
     let logic_calls = LogicCallExecutedEvent::from_logs(&logic_call_executed)?;
     trace!("logic call executions {:?}", logic_calls);
 
-    let mut total_volume = 0u8.into();
-
     Ok(EthInfo {
         deposit_events: deposits,
         batch_events: withdraws,
         valset_updates: valsets,
         erc20_deploys,
         logic_calls: logic_calls,
-        total_volume,
     })
 }

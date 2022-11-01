@@ -4,6 +4,7 @@ extern crate lazy_static;
 pub mod gravity_info;
 pub mod tls;
 pub mod total_suppy;
+pub mod volume;
 
 const DEVELOPMENT: bool = cfg!(feature = "development");
 const SSL: bool = !DEVELOPMENT;
@@ -15,6 +16,7 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 const PORT: u16 = 9000;
 
 use crate::gravity_info::get_erc20_metadata;
+use crate::volume::get_volume_info;
 use crate::{tls::*, gravity_info::get_gravity_info};
 use crate::total_suppy::get_supply_info;
 use actix_cors::Cors;
@@ -24,6 +26,7 @@ use gravity_info::{blockchain_info_thread, get_eth_info};
 use log::info;
 use rustls::ServerConfig;
 use total_suppy::chain_total_supply_thread;
+use volume::bridge_volume_thread;
 
 #[get("/total_supply")]
 async fn get_total_supply() -> impl Responder {
@@ -75,6 +78,16 @@ async fn erc20_metadata() -> impl Responder {
     }
 }
 
+#[get("/bridge_volume")]
+async fn get_bridge_volume() -> impl Responder {
+    // if we have already computed volume info return it, if not return an error
+    match get_volume_info() {
+        Some(v) => HttpResponse::Ok().json(v),
+        None => HttpResponse::InternalServerError()
+            .json("Info not yet generated, please query in 5 minutes"),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     openssl_probe::init_ssl_cert_env_vars();
@@ -83,6 +96,8 @@ async fn main() -> std::io::Result<()> {
     blockchain_info_thread();
     // starts a background thread for generating the total supply numbers
     chain_total_supply_thread();
+    // starts a background thread for generating volume numbers
+    bridge_volume_thread();
 
     let server = HttpServer::new(|| {
         App::new()
@@ -97,6 +112,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_eth_bridge_info)
             .service(get_gravity_bridge_info)
             .service(erc20_metadata)
+            .service(get_bridge_volume)
     });
 
     let server = if SSL {
