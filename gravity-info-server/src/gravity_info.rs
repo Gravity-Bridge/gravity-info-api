@@ -7,7 +7,7 @@ use clarity::{Address as EthAddress, Uint256};
 use cosmos_gravity::query::{
     get_attestations, get_gravity_params, get_latest_transaction_batches, get_pending_batch_fees,
 };
-use deep_space::{Coin, Contact};
+use deep_space::{Address, Coin, Contact};
 use futures::future::{join, join5, join_all};
 use futures::join;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
@@ -31,6 +31,9 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 pub const GRAVITY_NODE_GRPC: &str = "http://gravitychain.io:9090";
 pub const GRAVITY_PREFIX: &str = "gravity";
 pub const ETH_NODE_RPC: &str = "https://eth.althea.net";
+pub const FINALITY_DELAY: u128 = 100;
+/// number of seconds per eth block
+pub const ETH_BLOCK_TIME: u128 = 12;
 
 /// In memory store of gravity state used to serve rpc requests
 #[derive(Debug, Default, Clone, Serialize)]
@@ -45,11 +48,12 @@ pub struct GravityInfo {
 /// In memory store of Ethereum state used to serve rpc requests
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct EthInfo {
-    pub deposit_events: Vec<SendToCosmosEvent>,
+    pub deposit_events: Vec<DepositWithMetadata>,
     pub batch_events: Vec<TransactionBatchExecutedEvent>,
     pub valset_updates: Vec<ValsetUpdatedEvent>,
     pub erc20_deploys: Vec<Erc20DeployedEvent>,
     pub logic_calls: Vec<LogicCallExecutedEvent>,
+    pub latest_eth_block: Uint256,
 }
 
 lazy_static! {
@@ -274,6 +278,51 @@ impl From<Attestation> for InteralAttestation {
     }
 }
 
+/// A drop in for SendToCosmosEvent that provies more useful metadata to the user
+#[derive(Serialize, Debug, Clone, Eq, PartialEq, Hash)]
+pub struct DepositWithMetadata {
+    pub erc20: EthAddress,
+    pub sender: EthAddress,
+    pub destination: Address,
+    pub amount: Uint256,
+    pub event_nonce: u64,
+    pub block_height: Uint256,
+    // if this deposit is not yet executed on GB this will be false
+    pub confirmed: bool,
+    pub blocks_until_confirmed: Uint256,
+    pub seconds_until_confirmed: Uint256,
+}
+
+impl DepositWithMetadata {
+    pub fn convert(input: SendToCosmosEvent, current_eth_height: Uint256) -> Option<Self> {
+        let finished =
+            current_eth_height.clone() - input.block_height.clone() > FINALITY_DELAY.into();
+        // height at which Gravity will see this tx
+        let confirm_height = input.block_height.clone() + FINALITY_DELAY.into();
+        let blocks_until_confirmed: Uint256 = if finished {
+            0u8.into()
+        } else {
+            confirm_height - current_eth_height
+        };
+
+        if let Some(destination) = input.validated_destination {
+            Some(DepositWithMetadata {
+                erc20: input.erc20,
+                sender: input.sender,
+                destination,
+                amount: input.amount,
+                event_nonce: input.event_nonce,
+                block_height: input.block_height,
+                confirmed: finished,
+                blocks_until_confirmed: blocks_until_confirmed.clone(),
+                seconds_until_confirmed: blocks_until_confirmed * ETH_BLOCK_TIME.into(),
+            })
+        } else {
+            None
+        }
+    }
+}
+
 /// A serializable version of the Gravity Params
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct InternalGravityParams {
@@ -381,11 +430,20 @@ async fn query_eth_info(
     let logic_calls = LogicCallExecutedEvent::from_logs(&logic_call_executed)?;
     trace!("logic call executions {:?}", logic_calls);
 
+    let mut deposit_events = Vec::new();
+    for d in deposits {
+        let d = DepositWithMetadata::convert(d, latest_block.clone());
+        if let Some(d) = d {
+            deposit_events.push(d);
+        }
+    }
+
     Ok(EthInfo {
-        deposit_events: deposits,
+        deposit_events,
         batch_events: withdraws,
         valset_updates: valsets,
         erc20_deploys,
         logic_calls,
+        latest_eth_block: latest_block,
     })
 }

@@ -8,7 +8,7 @@ import {
   CardSubtitle,
   Table,
 } from "reactstrap";
-import { BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, SendToCosmosEvent, TransactionBatch, VolumeInfo } from './types';
+import { Attestation, BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, DepositWithMetadata, TransactionBatch, VolumeInfo } from './types';
 
 // 5 seconds
 const UPDATE_TIME = 5000;
@@ -273,7 +273,7 @@ function App() {
               </thead>
               <tbody>
                 {
-                  ethBridgeInfo.deposit_events.map((sendToCosmos: SendToCosmosEvent) => (<tr>
+                  ethBridgeInfo.deposit_events.map((sendToCosmos: DepositWithMetadata) => (<tr>
                     <td>
                       {getMetadataFromList(sendToCosmos.erc20, erc20Metadata)?.symbol}
                     </td>
@@ -285,6 +285,9 @@ function App() {
                     </td>
                     <td>
                       <a href={cosmosAddressToExplorerLink(sendToCosmos.destination)}>{sendToCosmos.destination}</a>
+                    </td>
+                    <td>
+                      {printTxStatus(sendToCosmos, gravityBridgeInfo.attestations)}
                     </td>
 
                   </tr>))
@@ -415,6 +418,15 @@ function cosmosAddressToExplorerLink(input: string) {
     return mantleBase + input
   } else {
     return input
+  }
+}
+
+// takes a send to Cosmos event and determines its status
+function printTxStatus(event: DepositWithMetadata, events: Array<Attestation>) {
+  if(event.confirmed) {
+    return "Complete" 
+  } else {
+    return "Pending " + event.seconds_until_confirmed + "s"
   }
 }
 

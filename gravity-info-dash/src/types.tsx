@@ -69,14 +69,16 @@ export type ChainTotalSupplyNumbers = {
     total_vested: number,
 }
 
-export type SendToCosmosEvent = {
+export type DepositWithMetadata = {
     erc20: string,
     sender: string,
     destination: string,
-    validated_destination: string | null
     amount: number,
     event_nonce: number,
     block_height: number
+    confirmed: boolean,
+    blocks_until_confirmed: number,
+    seconds_until_confirmed: number,
 }
 
 export type TransactionBatchExecutedEvent = {
@@ -120,7 +122,7 @@ export type LogicCallExecutedEvent = {
 }
 
 export type EthInfo = {
-    deposit_events: Array<SendToCosmosEvent>,
+    deposit_events: Array<DepositWithMetadata>,
     batch_events: Array<TransactionBatchExecutedEvent>,
     valset_updates: Array<ValsetUpdatedEvent>,
     erc20_deploys: Array<Erc20DeployedEvent>,

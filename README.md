@@ -181,13 +181,26 @@ Provides parsed Ethereum events from the [Gravity Bridge solidity contract](http
 {
   "deposit_events": [
     {
-      "erc20": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-      "sender": "0xD544cF7Ca732D8e71775eA12a076A9a9C45ba951",
-      "destination": "osmo1sp9lhefgwkq43ae5uzhkzydav7w9rtwy6zq50l",
-      "validated_destination": "osmo1sp9lhefgwkq43ae5uzhkzydav7w9rtwy6zq50l",
-      "amount": "100000000",
-      "event_nonce": 19309,
-      "block_height": "15868744"
+      "erc20": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "sender": "0xb5e452a90280A978aA8DAe4306F960167c7C528A",
+      "destination": "canto1khj992gzsz5h325d4epsd7tqze78c552gc870p",
+      "amount": "200000000000000000",
+      "event_nonce": 19443,
+      "block_height": "15876508",
+      "confirmed": true,
+      "blocks_until_confirmed": "0",
+      "seconds_until_confirmed": "0"
+    },
+    {
+      "erc20": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "sender": "0xFe9707E8d9B9436f99633987b400bbdf6a5Ab072",
+      "destination": "canto1l6ts06xeh9pklxtr8xrmgq9mma494vrjrr6pjf",
+      "amount": "340000000000000000",
+      "event_nonce": 19444,
+      "block_height": "15876578",
+      "confirmed": false,
+      "blocks_until_confirmed": "14",
+      "seconds_until_confirmed": "168"
     },
   ],
   "batch_events": [
