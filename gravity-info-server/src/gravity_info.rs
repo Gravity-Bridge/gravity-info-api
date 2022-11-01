@@ -9,6 +9,7 @@ use cosmos_gravity::query::{
 };
 use deep_space::{Coin, Contact};
 use futures::future::{join, join5, join_all};
+use futures::join;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_proto::gravity::{
     Attestation, BatchFees, Params as GravityParams, QueryDenomToErc20Request,
@@ -24,7 +25,6 @@ use std::time::Duration;
 use tonic::transport::channel::Channel;
 use web30::amm::USDC_CONTRACT_ADDRESS;
 use web30::client::Web3;
-use futures::join;
 
 const LOOP_TIME: Duration = Duration::from_secs(30);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -311,10 +311,7 @@ impl From<GravityParams> for InternalGravityParams {
             signed_batches_window: p.signed_batches_window,
             signed_logic_calls_window: p.signed_logic_calls_window,
             unbond_slashing_valsets_window: p.unbond_slashing_valsets_window,
-            valset_reward: match p.valset_reward {
-                Some(c) => Some(c.into()),
-                None => None,
-            },
+            valset_reward: p.valset_reward.map(|c| c.into()),
         }
     }
 }
@@ -389,6 +386,6 @@ async fn query_eth_info(
         batch_events: withdraws,
         valset_updates: valsets,
         erc20_deploys,
-        logic_calls: logic_calls,
+        logic_calls,
     })
 }

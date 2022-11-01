@@ -16,9 +16,9 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 const PORT: u16 = 9000;
 
 use crate::gravity_info::get_erc20_metadata;
-use crate::volume::get_volume_info;
-use crate::{tls::*, gravity_info::get_gravity_info};
 use crate::total_suppy::get_supply_info;
+use crate::volume::get_volume_info;
+use crate::{gravity_info::get_gravity_info, tls::*};
 use actix_cors::Cors;
 use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 use env_logger::Env;

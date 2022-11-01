@@ -298,13 +298,13 @@ async fn batch_query_user_information(
     denom: String,
 ) -> Result<Vec<UserInfo>, CosmosGrpcError> {
     trace!("Starting batch of {}", input.len());
-    let mut bankrpc = BankQueryClient::connect(GRAVITY_NODE_GRPC.clone())
+    let mut bankrpc = BankQueryClient::connect(GRAVITY_NODE_GRPC)
         .await?
         .accept_gzip();
-    let mut distrpc = DistQueryClient::connect(GRAVITY_NODE_GRPC.clone())
+    let mut distrpc = DistQueryClient::connect(GRAVITY_NODE_GRPC)
         .await?
         .accept_gzip();
-    let mut stakingrpc = StakingQueryClient::connect(GRAVITY_NODE_GRPC.clone())
+    let mut stakingrpc = StakingQueryClient::connect(GRAVITY_NODE_GRPC)
         .await?
         .accept_gzip();
 
@@ -372,7 +372,7 @@ async fn merge_user_information(
         }
         // you can total non-native token rewards in an else case here
     }
-    delegation_rewards_total = delegation_rewards_total / ONE_ETH.into();
+    delegation_rewards_total /= ONE_ETH.into();
 
     let mut total_delegated: Uint256 = 0u8.into();
     for delegated in delegated.delegation_responses {

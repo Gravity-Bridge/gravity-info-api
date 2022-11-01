@@ -1,7 +1,7 @@
 //! boilerplate for tls support
 
-use std::io::BufReader;
 use std::fs::File;
+use std::io::BufReader;
 
 pub fn load_certs(filename: &str) -> Vec<rustls::Certificate> {
     let certfile = File::open(filename).expect("cannot open certificate file");

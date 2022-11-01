@@ -138,9 +138,9 @@ async fn get_bridge_volume_for_range(
         let vol = get_gravity_volume_for_token(
             starting_block.clone(),
             ending_block.clone(),
-            &token,
+            token,
             gravity_contract_address,
-            &web3,
+            web3,
         );
         futs.push(vol);
     }
@@ -194,7 +194,7 @@ async fn get_gravity_volume_for_token(
             inflow += i;
             outflow += o;
 
-            current_block = current_block + blocks_to_search.clone();
+            current_block += blocks_to_search.clone();
         }
         let logs = web3
             .check_for_events(
