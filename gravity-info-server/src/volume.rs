@@ -15,6 +15,7 @@ use std::{
     time::Duration,
 };
 use web30::client::Web3;
+use web30::types::Log;
 
 use crate::gravity_info::{get_erc20_metadata, get_gravity_info, Erc20Metadata, ETH_NODE_RPC};
 use clarity::Address as EthAddress;
@@ -167,6 +168,10 @@ async fn get_gravity_volume_for_token(
     web3: &Web3,
 ) -> Result<BridgeVolume, GravityError> {
     if let Some(exchange_rate) = erc20.exchange_rate.clone() {
+        let mut volume: f64 = 0u8.into();
+        let mut inflow: f64 = 0u8.into();
+        let mut outflow: f64 = 0u8.into();
+
         let decimals: u32 = erc20.decimals.to_string().parse().unwrap();
         let exchange_rate: f64 = exchange_rate.to_string().parse().unwrap();
         info!("Searching events for {}", erc20.symbol);
@@ -174,9 +179,8 @@ async fn get_gravity_volume_for_token(
         // these contracts prodcue
         let blocks_to_search: Uint256 = 500u16.into();
         let mut current_block = starting_block;
-        let mut logs = Vec::new();
         while current_block.clone() + blocks_to_search.clone() < ending_block {
-            let l = web3
+            let logs = web3
                 .check_for_events(
                     current_block.clone(),
                     Some(current_block.clone() + blocks_to_search.clone()),
@@ -184,10 +188,15 @@ async fn get_gravity_volume_for_token(
                     vec!["Transfer(address,address,uint256)"],
                 )
                 .await?;
-            logs.extend(l);
+
+            let (v, i, o) = sum_logs(logs, gravity_contract_address, decimals, exchange_rate)?;
+            volume += v;
+            inflow += i;
+            outflow += o;
+
             current_block = current_block + blocks_to_search.clone();
         }
-        let l = web3
+        let logs = web3
             .check_for_events(
                 current_block.clone(),
                 Some(ending_block),
@@ -195,30 +204,11 @@ async fn get_gravity_volume_for_token(
                 vec!["Transfer(address,address,uint256)"],
             )
             .await?;
-        logs.extend(l);
-        info!("Found {} events for {}", logs.len(), erc20.symbol);
+        let (v, i, o) = sum_logs(logs, gravity_contract_address, decimals, exchange_rate)?;
+        volume += v;
+        inflow += i;
+        outflow += o;
 
-        let mut volume: f64 = 0u8.into();
-        let mut inflow: f64 = 0u8.into();
-        let mut outflow: f64 = 0u8.into();
-        for l in logs {
-            let from = EthAddress::from_slice(&l.topics[1][12..32])?;
-            let to = EthAddress::from_slice(&l.topics[2][12..32])?;
-            let amount = Uint256::from_bytes_be(&l.data[0..32]);
-            // unit conversion to get to whole dollars float caveats about
-            // rounding errors apply
-            let amount: f64 = amount.to_string().parse().unwrap();
-            let amount = amount / 10u128.pow(decimals) as f64;
-            let amount = amount * exchange_rate;
-            let amount = amount / 10u128.pow(6) as f64;
-            if to == gravity_contract_address {
-                volume += amount;
-                inflow += amount
-            } else if from == gravity_contract_address {
-                volume += amount;
-                outflow += amount;
-            }
-        }
         Ok(BridgeVolume {
             volume,
             inflow,
@@ -228,4 +218,34 @@ async fn get_gravity_volume_for_token(
         // no exchange rate, ignore
         Ok(BridgeVolume::default())
     }
+}
+
+fn sum_logs(
+    logs: Vec<Log>,
+    gravity_contract_address: EthAddress,
+    decimals: u32,
+    exchange_rate: f64,
+) -> Result<(f64, f64, f64), GravityError> {
+    let mut volume: f64 = 0u8.into();
+    let mut inflow: f64 = 0u8.into();
+    let mut outflow: f64 = 0u8.into();
+    for l in logs {
+        let from = EthAddress::from_slice(&l.topics[1][12..32])?;
+        let to = EthAddress::from_slice(&l.topics[2][12..32])?;
+        let amount = Uint256::from_bytes_be(&l.data[0..32]);
+        // unit conversion to get to whole dollars float caveats about
+        // rounding errors apply
+        let amount: f64 = amount.to_string().parse().unwrap();
+        let amount = amount / 10u128.pow(decimals) as f64;
+        let amount = amount * exchange_rate;
+        let amount = amount / 10u128.pow(6) as f64;
+        if to == gravity_contract_address {
+            volume += amount;
+            inflow += amount
+        } else if from == gravity_contract_address {
+            volume += amount;
+            outflow += amount;
+        }
+    }
+    Ok((volume, inflow, outflow))
 }
