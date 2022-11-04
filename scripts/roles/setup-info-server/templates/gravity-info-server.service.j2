@@ -8,6 +8,7 @@ RestartSec=60
 LimitNOFILE=65536
 Restart=always
 Environment="RUST_LOG=INFO"
+Environment="RUST_BACKTRACE=FULL"
 ExecStart=/usr/bin/gravity-info-server
 
 [Install]
