@@ -121,6 +121,7 @@ async fn compute_liquid_supply(
     let mut total_vesting_staked: Uint256 = 0u8.into();
 
     for user in users {
+        //let address = user.account.get_base_account().address;
         match user.account {
             // account with no vesting, simple case, all is liquid
             AccountType::ProtoBaseAccount(_) => {
@@ -169,10 +170,12 @@ async fn compute_liquid_supply(
                     total_vested += total_amount_vested;
                     total_vesting += total_amount_still_vesting.clone();
 
+                    assert!(total_amount_still_vesting > total_delegated_vesting);
                     let vesting_in_balance = total_amount_still_vesting - total_delegated_vesting;
                     // unvested tokens show up in the balance
                     // but unvested delegated tokens do not, in the case where a user
                     // has some vesting, some delegation, some balance, and some unclaimed rewards
+                    assert!(user.balance > vesting_in_balance);
                     total_liquid_supply += user.balance - vesting_in_balance;
                 }
                 // vesting has not started yet, in this case we subtract total vesting amount
@@ -181,7 +184,12 @@ async fn compute_liquid_supply(
                 else {
                     let vesting_in_balance =
                         original_vesting_amount.clone() - total_delegated_vesting;
+                    assert!(total_vested > original_vesting_amount);
+
                     total_vested += original_vesting_amount;
+
+                    assert!(user.balance > vesting_in_balance);
+
                     total_liquid_supply += user.balance - vesting_in_balance;
                 }
             }
@@ -214,13 +222,22 @@ async fn compute_liquid_supply(
                         original_vesting_amount_float * vesting_percent_complete;
                     let total_amount_vested: Uint256 = (total_amount_vested.ceil() as u128).into();
 
+                    assert!(original_vesting_amount > total_amount_vested);
                     let total_amount_still_vesting =
-                        total_amount_vested.clone() - original_vesting_amount;
+                        original_vesting_amount - total_amount_vested.clone();
 
                     total_vested += total_amount_vested;
                     total_vesting += total_amount_still_vesting.clone();
 
-                    let vesting_in_balance = total_amount_still_vesting - total_delegated_vesting;
+
+                    // this can happen because the delegated vesting number is only updated on undelegation / rewards withdraw
+                    // while our total amount still vesting is pro-rated to find the current amount
+                    let vesting_in_balance = if total_amount_still_vesting > total_delegated_vesting
+                    {
+                        total_amount_still_vesting - total_delegated_vesting
+                    } else {
+                        0u8.into()
+                    };
                     // unvested tokens show up in the balance
                     // but unvested delegated tokens do not, in the case where a user
                     // has some vesting, some delegation, some balance, and some unclaimed rewards
@@ -230,12 +247,18 @@ async fn compute_liquid_supply(
                 // from current balance, if the number is positive (staking could make it negative)
                 // we add to our total
                 else {
+                    assert!(original_vesting_amount >= total_delegated_vesting);
+
                     let vesting_in_balance =
                         original_vesting_amount.clone() - total_delegated_vesting;
-                    total_liquid_balances += user.balance.clone() - vesting_in_balance.clone();
-                    total_vesting += original_vesting_amount;
 
-                    total_liquid_supply += user.balance - vesting_in_balance;
+                    assert!(user.balance >= vesting_in_balance);
+
+                    let liquid = user.balance.clone() - vesting_in_balance.clone();
+
+                    total_liquid_balances += liquid.clone();
+                    total_vesting += original_vesting_amount;
+                    total_liquid_supply += liquid;
                 }
             }
             AccountType::DelayedVestingAccount(_) => todo!(),

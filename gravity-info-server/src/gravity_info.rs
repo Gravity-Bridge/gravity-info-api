@@ -108,6 +108,7 @@ pub fn blockchain_info_thread() {
                     Ok(v) => {
                         let bridge_eth_address = v.params.bridge_ethereum_address;
                         set_gravity_info(v);
+                        info!("Successfully updated Gravity info");
                         bridge_eth_address
                     }
                     Err(e) => {
