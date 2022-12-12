@@ -103,14 +103,19 @@ pub fn blockchain_info_thread() {
                 .await
                 .unwrap();
 
-            let gravity_info = match query_gravity_info(&contact, &mut grpc_client).await {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("Failed to update Gravity Info with {:?}", e);
-                    return;
-                }
-            };
-            let eth_info = query_eth_info(&web30, gravity_info.params.bridge_ethereum_address);
+            let gravity_contract_address =
+                match query_gravity_info(&contact, &mut grpc_client).await {
+                    Ok(v) => {
+                        let bridge_eth_address = v.params.bridge_ethereum_address;
+                        set_gravity_info(v);
+                        bridge_eth_address
+                    }
+                    Err(e) => {
+                        error!("Failed to update Gravity Info with {:?}", e);
+                        return;
+                    }
+                };
+            let eth_info = query_eth_info(&web30, gravity_contract_address);
             let erc20_metadata = get_all_erc20_metadata(&contact, &web30, &mut grpc_client);
             let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
             let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
@@ -126,7 +131,6 @@ pub fn blockchain_info_thread() {
             };
 
             set_eth_info(eth_info);
-            set_gravity_info(gravity_info);
             set_erc20_metadata(erc20_metadata);
             info!("Successfully updated Gravity and ETH info");
         });
