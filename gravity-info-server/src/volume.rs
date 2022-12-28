@@ -4,11 +4,13 @@
 use actix_web::cookie::time::Instant;
 use actix_web::rt::System;
 use clarity::Uint256;
+use deep_space::Contact;
 use futures::future::join;
 use futures::future::join_all;
 use gravity_utils::error::GravityError;
 use log::{info, warn};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::{
     sync::{Arc, RwLock},
     thread,
@@ -17,13 +19,12 @@ use std::{
 use web30::client::Web3;
 use web30::types::Log;
 
-use crate::gravity_info::{get_erc20_metadata, get_gravity_info, Erc20Metadata, ETH_NODE_RPC};
+use crate::gravity_info::EvmChainConfig;
+use crate::gravity_info::GravityConfig;
+use crate::gravity_info::{get_erc20_metadata, get_gravity_info, Erc20Metadata};
 use clarity::Address as EthAddress;
 
 // update once a day
-const LOOP_TIME: Duration = Duration::from_secs(86400);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-const BLOCKS_PER_DAY: u128 = 7_200;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BridgeVolumeNumbers {
@@ -36,80 +37,97 @@ pub struct BridgeVolumeNumbers {
 }
 
 lazy_static! {
-    static ref VOLUME: Arc<RwLock<Option<BridgeVolumeNumbers>>> = Arc::new(RwLock::new(None));
+    static ref VOLUME: Arc<RwLock<HashMap<String, BridgeVolumeNumbers>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 }
 
-fn set_volume_info(input: BridgeVolumeNumbers) {
+fn set_volume_info(evm_chain_prefix: &str, input: BridgeVolumeNumbers) {
     let mut r = VOLUME.write().unwrap();
-    *r = Some(input);
+    r.insert(evm_chain_prefix.to_string(), input);
 }
 
-pub fn get_volume_info() -> Option<BridgeVolumeNumbers> {
-    VOLUME.read().unwrap().clone()
+pub fn get_volume_info(evm_chain_prefix: &str) -> Option<BridgeVolumeNumbers> {
+    VOLUME.read().unwrap().get(evm_chain_prefix).cloned()
 }
 
-pub fn bridge_volume_thread() {
+pub fn bridge_volume_thread(gravity_config: GravityConfig, evm_chain_configs: Vec<EvmChainConfig>) {
     info!("Starting volume computation thread");
+
+    let contact = Contact::new(
+        &gravity_config.grpc,
+        gravity_config.request_timeout,
+        &gravity_config.prefix,
+    )
+    .unwrap();
 
     thread::spawn(move || loop {
         let runner = System::new();
-        runner.block_on(async move {
-            let web3 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
-            let metadata = get_erc20_metadata();
-            let params = get_gravity_info();
-            if let (Some(metadata), Some(params)) = (metadata, params) {
-                let gravity_contract_address = params.params.bridge_ethereum_address;
-                let latest_block = match web3.eth_block_number().await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!("Failed to get ETH block number with {:?}", e);
-                        return;
+
+        for evm_chain_config in &evm_chain_configs {
+            runner.block_on(async {
+                let web3 = Web3::new(&evm_chain_config.rpc, contact.get_timeout());
+
+                let metadata = get_erc20_metadata(&evm_chain_config.prefix);
+                let params = get_gravity_info(&evm_chain_config.prefix);
+                if let (Some(metadata), Some(params)) = (metadata, params) {
+                    let gravity_contract_address = params.params.bridge_ethereum_address;
+                    let latest_block = match web3.eth_block_number().await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            warn!("Failed to get ETH block number with {:?}", e);
+                            return;
+                        }
+                    };
+                    let starting_block_daily =
+                        latest_block.clone() - gravity_config.block_per_day.into();
+                    let starting_block_weekly =
+                        latest_block.clone() - (gravity_config.block_per_day * 7).into();
+                    let daily_volume = get_bridge_volume_for_range(
+                        starting_block_daily,
+                        latest_block.clone(),
+                        &metadata,
+                        gravity_contract_address,
+                        &web3,
+                    );
+                    let weekly_volume = get_bridge_volume_for_range(
+                        starting_block_weekly,
+                        latest_block,
+                        &metadata,
+                        gravity_contract_address,
+                        &web3,
+                    );
+                    info!("Starting volume query");
+                    let start = Instant::now();
+                    let (daily_volume, weekly_volume) = join(daily_volume, weekly_volume).await;
+                    match (daily_volume, weekly_volume) {
+                        (Ok(daily), Ok(weekly)) => {
+                            set_volume_info(
+                                &evm_chain_config.prefix,
+                                BridgeVolumeNumbers {
+                                    daily_volume: daily.volume,
+                                    daily_inflow: daily.inflow,
+                                    daily_outflow: daily.outflow,
+                                    weekly_volume: weekly.volume,
+                                    weekly_inflow: weekly.inflow,
+                                    weekly_outflow: weekly.outflow,
+                                },
+                            );
+                            info!(
+                                "Successfuly updated volume info in {}s!",
+                                start.elapsed().as_seconds_f32()
+                            );
+                        }
+                        (Err(e), _) => warn!("Could not get daily volume {:?}", e),
+                        (_, Err(e)) => warn!("Could not get weekly volume {:?}", e),
                     }
-                };
-                let starting_block_daily = latest_block.clone() - BLOCKS_PER_DAY.into();
-                let starting_block_weekly = latest_block.clone() - (BLOCKS_PER_DAY * 7).into();
-                let daily_volume = get_bridge_volume_for_range(
-                    starting_block_daily,
-                    latest_block.clone(),
-                    &metadata,
-                    gravity_contract_address,
-                    &web3,
-                );
-                let weekly_volume = get_bridge_volume_for_range(
-                    starting_block_weekly,
-                    latest_block,
-                    &metadata,
-                    gravity_contract_address,
-                    &web3,
-                );
-                info!("Starting volume query");
-                let start = Instant::now();
-                let (daily_volume, weekly_volume) = join(daily_volume, weekly_volume).await;
-                match (daily_volume, weekly_volume) {
-                    (Ok(daily), Ok(weekly)) => {
-                        set_volume_info(BridgeVolumeNumbers {
-                            daily_volume: daily.volume,
-                            daily_inflow: daily.inflow,
-                            daily_outflow: daily.outflow,
-                            weekly_volume: weekly.volume,
-                            weekly_inflow: weekly.inflow,
-                            weekly_outflow: weekly.outflow,
-                        });
-                        info!(
-                            "Successfuly updated volume info in {}s!",
-                            start.elapsed().as_seconds_f32()
-                        );
-                    }
-                    (Err(e), _) => warn!("Could not get daily volume {:?}", e),
-                    (_, Err(e)) => warn!("Could not get weekly volume {:?}", e),
                 }
+            });
+            if get_volume_info(&evm_chain_config.prefix).is_some() {
+                thread::sleep(evm_chain_config.loop_time);
+            } else {
+                // we haven't gotten any info yet, try again soon
+                thread::sleep(Duration::from_secs(5));
             }
-        });
-        if get_volume_info().is_some() {
-            thread::sleep(LOOP_TIME);
-        } else {
-            // we haven't gotten any info yet, try again soon
-            thread::sleep(Duration::from_secs(5));
         }
     });
 }

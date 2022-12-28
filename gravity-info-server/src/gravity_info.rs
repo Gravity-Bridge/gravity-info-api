@@ -19,6 +19,7 @@ use gravity_utils::types::{event_signatures::*, *};
 use gravity_utils::types::{SendToCosmosEvent, TransactionBatch};
 use log::{error, info, trace};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -26,14 +27,27 @@ use tonic::transport::channel::Channel;
 use web30::amm::USDC_CONTRACT_ADDRESS;
 use web30::client::Web3;
 
-const LOOP_TIME: Duration = Duration::from_secs(30);
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-pub const GRAVITY_NODE_GRPC: &str = "http://gravitychain.io:9090";
-pub const GRAVITY_PREFIX: &str = "gravity";
-pub const ETH_NODE_RPC: &str = "https://eth.althea.net";
-pub const FINALITY_DELAY: u128 = 100;
-/// number of seconds per eth block
-pub const ETH_BLOCK_TIME: u128 = 12;
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct GravityConfig {
+    pub port: u64,
+    pub ssl: bool,
+    pub host: String,
+    pub prefix: String,
+    pub grpc: String,
+    pub denom: String,
+    pub loop_time: Duration,
+    pub request_timeout: Duration,
+    pub block_per_day: u64,
+}
+
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct EvmChainConfig {
+    pub prefix: String,
+    pub rpc: String,
+    pub finality_delay: u64,
+    pub block_time: u64,
+    pub loop_time: Duration,
+}
 
 /// In memory store of gravity state used to serve rpc requests
 #[derive(Debug, Default, Clone, Serialize)]
@@ -57,85 +71,118 @@ pub struct EthInfo {
 }
 
 lazy_static! {
-    static ref GRAVITY_INFO: Arc<RwLock<Option<GravityInfo>>> = Arc::new(RwLock::new(None));
-    static ref ETH_INFO: Arc<RwLock<Option<EthInfo>>> = Arc::new(RwLock::new(None));
-    static ref ERC20_METADATA: Arc<RwLock<Option<Vec<Erc20Metadata>>>> =
-        Arc::new(RwLock::new(None));
+    static ref GRAVITY_INFO: Arc<RwLock<HashMap<String, GravityInfo>>> =
+        Arc::new(RwLock::new(HashMap::new()));
+    static ref ETH_INFO: Arc<RwLock<HashMap<String, EthInfo>>> =
+        Arc::new(RwLock::new(HashMap::new()));
+    static ref ERC20_METADATA: Arc<RwLock<HashMap<String, Vec<Erc20Metadata>>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 }
 
-pub fn get_gravity_info() -> Option<GravityInfo> {
-    GRAVITY_INFO.read().unwrap().clone()
+pub fn get_gravity_info(evm_chain_prefix: &str) -> Option<GravityInfo> {
+    GRAVITY_INFO.read().unwrap().get(evm_chain_prefix).cloned()
 }
 
-fn set_gravity_info(info: GravityInfo) {
+fn set_gravity_info(evm_chain_prefix: &str, info: GravityInfo) {
     let mut lock = GRAVITY_INFO.write().unwrap();
-    *lock = Some(info)
+    lock.insert(evm_chain_prefix.to_string(), info);
 }
 
-pub fn get_eth_info() -> Option<EthInfo> {
-    ETH_INFO.read().unwrap().clone()
+pub fn get_eth_info(evm_chain_prefix: &str) -> Option<EthInfo> {
+    ETH_INFO.read().unwrap().get(evm_chain_prefix).cloned()
 }
 
-fn set_eth_info(info: EthInfo) {
+fn set_eth_info(evm_chain_prefix: &str, info: EthInfo) {
     let mut lock = ETH_INFO.write().unwrap();
-    *lock = Some(info)
+    lock.insert(evm_chain_prefix.to_string(), info);
 }
 
-pub fn get_erc20_metadata() -> Option<Vec<Erc20Metadata>> {
-    ERC20_METADATA.read().unwrap().clone()
+pub fn get_erc20_metadata(evm_chain_prefix: &str) -> Option<Vec<Erc20Metadata>> {
+    ERC20_METADATA
+        .read()
+        .unwrap()
+        .get(evm_chain_prefix)
+        .cloned()
 }
 
-fn set_erc20_metadata(metadata: Vec<Erc20Metadata>) {
+fn set_erc20_metadata(evm_chain_prefix: &str, metadata: Vec<Erc20Metadata>) {
     let mut lock = ERC20_METADATA.write().unwrap();
-    *lock = Some(metadata)
+    lock.insert(evm_chain_prefix.to_string(), metadata);
 }
 
-pub fn blockchain_info_thread() {
+pub fn blockchain_info_thread(
+    gravity_config: GravityConfig,
+    evm_chain_configs: Vec<EvmChainConfig>,
+) {
     info!("Starting Gravity info watcher");
+
+    let contact = Contact::new(
+        &gravity_config.grpc,
+        gravity_config.request_timeout,
+        &gravity_config.prefix,
+    )
+    .unwrap();
 
     thread::spawn(move || loop {
         let runner = System::new();
-        runner.block_on(async move {
-            let web30 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
-            let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
-            // since we're rebuilding the async env every loop iteration we need to re-init this
-            let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
-                .await
-                .unwrap();
+        // loop for list evm chains
+        for evm_chain_config in &evm_chain_configs {
+            runner.block_on(async {
+                let web30 = Web3::new(&evm_chain_config.rpc, contact.get_timeout());
 
-            let gravity_contract_address =
-                match query_gravity_info(&contact, &mut grpc_client).await {
-                    Ok(v) => {
-                        let bridge_eth_address = v.params.bridge_ethereum_address;
-                        set_gravity_info(v);
-                        info!("Successfully updated Gravity info");
-                        bridge_eth_address
+                // since we're rebuilding the async env every loop iteration we need to re-init this
+                let mut grpc_client = GravityQueryClient::connect(contact.get_url())
+                    .await
+                    .unwrap();
+
+                let gravity_contract_address =
+                    match query_gravity_info(&contact, &mut grpc_client, &evm_chain_config.prefix)
+                        .await
+                    {
+                        Ok(v) => {
+                            let bridge_eth_address = v.params.bridge_ethereum_address;
+                            set_gravity_info(&evm_chain_config.prefix, v);
+                            info!("Successfully updated Gravity info");
+                            bridge_eth_address
+                        }
+                        Err(e) => {
+                            error!("Failed to update Gravity Info with {:?}", e);
+                            return;
+                        }
+                    };
+                let eth_info = query_eth_info(
+                    &web30,
+                    gravity_contract_address,
+                    evm_chain_config.finality_delay,
+                    evm_chain_config.block_time,
+                );
+                let erc20_metadata = get_all_erc20_metadata(
+                    &contact,
+                    &web30,
+                    &mut grpc_client,
+                    &evm_chain_config.prefix,
+                );
+                let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
+                let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
+                    (Ok(a), Ok(b)) => (a, b),
+                    (_, Err(e)) => {
+                        error!("Failed to get eth info {:?}", e);
+                        return;
                     }
-                    Err(e) => {
-                        error!("Failed to update Gravity Info with {:?}", e);
+                    (Err(e), _) => {
+                        error!("Failed to get erc20 metadata {:?}", e);
                         return;
                     }
                 };
-            let eth_info = query_eth_info(&web30, gravity_contract_address);
-            let erc20_metadata = get_all_erc20_metadata(&contact, &web30, &mut grpc_client);
-            let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
-            let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
-                (Ok(a), Ok(b)) => (a, b),
-                (_, Err(e)) => {
-                    error!("Failed to get eth info {:?}", e);
-                    return;
-                }
-                (Err(e), _) => {
-                    error!("Failed to get erc20 metadata {:?}", e);
-                    return;
-                }
-            };
 
-            set_eth_info(eth_info);
-            set_erc20_metadata(erc20_metadata);
-            info!("Successfully updated Gravity and ETH info");
-        });
-        thread::sleep(LOOP_TIME);
+                set_eth_info(&evm_chain_config.prefix, eth_info);
+                set_erc20_metadata(&evm_chain_config.prefix, erc20_metadata);
+                info!("Successfully updated Gravity and ETH info");
+            });
+
+            // loop time for processing eth update
+            thread::sleep(evm_chain_config.loop_time);
+        }
     });
 }
 
@@ -144,6 +191,7 @@ async fn get_all_erc20_metadata(
     contact: &Contact,
     web30: &Web3,
     grpc_client: &mut GravityQueryClient<Channel>,
+    evm_chain_prefix: &str,
 ) -> Result<Vec<Erc20Metadata>, GravityError> {
     let all_tokens_on_gravity = contact.query_total_supply().await?;
     let mut futs = Vec::new();
@@ -152,7 +200,10 @@ async fn get_all_erc20_metadata(
             token.denom.trim_start_matches("gravity").parse().unwrap()
         } else {
             match grpc_client
-                .denom_to_erc20(QueryDenomToErc20Request { denom: token.denom })
+                .denom_to_erc20(QueryDenomToErc20Request {
+                    denom: token.denom,
+                    evm_chain_prefix: evm_chain_prefix.to_string(),
+                })
                 .await
             {
                 Ok(v) => v.into_inner().erc20.parse().unwrap(),
@@ -232,11 +283,14 @@ pub struct Erc20Metadata {
 async fn query_gravity_info(
     _contact: &Contact,
     grpc_client: &mut GravityQueryClient<Channel>,
+    evm_chain_prefix: &str,
 ) -> Result<GravityInfo, GravityError> {
     // can't be easily parallelized becuase of the grpc client :(
-    let pending_tx = get_pending_batch_fees(grpc_client).await?.batch_fees;
-    let pending_batches = get_latest_transaction_batches(grpc_client).await?;
-    let attestations = get_attestations(grpc_client, None).await?;
+    let pending_tx = get_pending_batch_fees(grpc_client, evm_chain_prefix)
+        .await?
+        .batch_fees;
+    let pending_batches = get_latest_transaction_batches(grpc_client, evm_chain_prefix).await?;
+    let attestations = get_attestations(grpc_client, evm_chain_prefix, None).await?;
     let params = get_gravity_params(grpc_client).await?;
 
     Ok(GravityInfo {
@@ -299,11 +353,16 @@ pub struct DepositWithMetadata {
 }
 
 impl DepositWithMetadata {
-    pub fn convert(input: SendToCosmosEvent, current_eth_height: Uint256) -> Option<Self> {
+    pub fn convert(
+        input: SendToCosmosEvent,
+        current_eth_height: Uint256,
+        finality_delay: u64,
+        eth_block_time: u64,
+    ) -> Option<Self> {
         let finished =
-            current_eth_height.clone() - input.block_height.clone() > FINALITY_DELAY.into();
+            current_eth_height.clone() - input.block_height.clone() > finality_delay.into();
         // height at which Gravity will see this tx
-        let confirm_height = input.block_height.clone() + FINALITY_DELAY.into();
+        let confirm_height = input.block_height.clone() + finality_delay.into();
         let blocks_until_confirmed: Uint256 = if finished {
             0u8.into()
         } else {
@@ -320,7 +379,7 @@ impl DepositWithMetadata {
                 block_height: input.block_height,
                 confirmed: finished,
                 blocks_until_confirmed: blocks_until_confirmed.clone(),
-                seconds_until_confirmed: blocks_until_confirmed * ETH_BLOCK_TIME.into(),
+                seconds_until_confirmed: blocks_until_confirmed * eth_block_time.into(),
             })
         } else {
             None
@@ -373,6 +432,8 @@ impl From<GravityParams> for InternalGravityParams {
 async fn query_eth_info(
     web3: &Web3,
     gravity_contract_address: EthAddress,
+    finality_delay: u64,
+    eth_block_time: u64,
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
     let starting_block = latest_block.clone() - 7_200u16.into();
@@ -437,7 +498,8 @@ async fn query_eth_info(
 
     let mut deposit_events = Vec::new();
     for d in deposits {
-        let d = DepositWithMetadata::convert(d, latest_block.clone());
+        let d =
+            DepositWithMetadata::convert(d, latest_block.clone(), finality_delay, eth_block_time);
         if let Some(d) = d {
             deposit_events.push(d);
         }

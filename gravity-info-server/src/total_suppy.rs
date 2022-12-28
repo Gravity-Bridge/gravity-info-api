@@ -4,7 +4,6 @@
 //! to effectively query all the data in a reasonable amount of time and compute the result locally
 //! This code provides a generic way to compute the total liquid supply for a cosmos chain across all vesting types
 
-use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
 use actix_web::rt::System;
 use deep_space::client::types::AccountType;
 use deep_space::client::PAGE;
@@ -26,9 +25,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tonic::transport::channel::Channel;
 
-// update once a day
-const LOOP_TIME: Duration = Duration::from_secs(86400);
-pub const GRAVITY_DENOM: &str = "ugraviton";
+use crate::gravity_info::GravityConfig;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChainTotalSupplyNumbers {
@@ -63,14 +60,13 @@ pub fn get_supply_info() -> Option<ChainTotalSupplyNumbers> {
     TOTAL_SUPPLY.read().unwrap().clone()
 }
 
-pub fn chain_total_supply_thread() {
+pub fn chain_total_supply_thread(gravity_config: GravityConfig) {
     info!("Starting supply calculation thread");
 
     thread::spawn(move || loop {
         let runner = System::new();
-        runner.block_on(async move {
-            let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
-            match compute_liquid_supply(&contact, GRAVITY_DENOM.to_string()).await {
+        runner.block_on(async {
+            match compute_liquid_supply(&gravity_config).await {
                 Ok(v) => {
                     info!("Successfully updated supply info!");
                     set_supply_info(v);
@@ -78,7 +74,7 @@ pub fn chain_total_supply_thread() {
                 Err(e) => error!("Failed to update supply info with {:?}", e),
             }
         });
-        thread::sleep(LOOP_TIME);
+        thread::sleep(gravity_config.loop_time);
     });
 }
 
@@ -94,15 +90,22 @@ pub fn chain_total_supply_thread() {
 ///
 /// Returns liquid supply (not including community pool, including staked but liquid tokens)
 async fn compute_liquid_supply(
-    contact: &Contact,
-    denom: String,
+    gravity_config: &GravityConfig,
 ) -> Result<ChainTotalSupplyNumbers, CosmosGrpcError> {
+    let contact = Contact::new(
+        &gravity_config.grpc,
+        gravity_config.request_timeout,
+        &gravity_config.prefix,
+    )
+    .unwrap();
+
     let start = Instant::now();
     info!("Starting get all accounts");
     // start by getting every account on chain and every balance for every account
     let accounts = contact.get_all_accounts().await?;
     info!("Got all accounts after {}ms", start.elapsed().as_millis());
-    let users = get_balances_for_accounts(accounts, denom.clone()).await?;
+    let users =
+        get_balances_for_accounts(accounts, &gravity_config.denom, &gravity_config.grpc).await?;
     info!(
         "Got all balances/vesting after {}ms",
         start.elapsed().as_millis()
@@ -140,7 +143,7 @@ async fn compute_liquid_supply(
                     UNIX_EPOCH + Duration::from_secs(account_info.start_time as u64);
                 let base = account_info.base_vesting_account.unwrap();
                 let (total_delegated_free, total_delegated_vesting, original_vesting_amount) =
-                    sum_vesting(base, denom.clone());
+                    sum_vesting(base, gravity_config.denom.clone());
                 // obvious stuff requiring no computation
                 total_liquid_supply += user.unclaimed_rewards;
                 total_liquid_supply += total_delegated_free.clone();
@@ -160,7 +163,7 @@ async fn compute_liquid_supply(
                         {
                             // hack assumes vesting is only one coin
                             let amount: Coin = vesting_period.amount[0].clone().into();
-                            assert_eq!(amount.denom, denom);
+                            assert_eq!(amount.denom, gravity_config.denom);
                             total_amount_vested += amount.amount;
                         }
                     }
@@ -200,7 +203,7 @@ async fn compute_liquid_supply(
                 let vesting_duration =
                     Duration::from_secs(base.end_time as u64 - account_info.start_time as u64);
                 let (total_delegated_free, total_delegated_vesting, original_vesting_amount) =
-                    sum_vesting(base, denom.clone());
+                    sum_vesting(base, gravity_config.denom.clone());
 
                 // obvious stuff requiring no computation
                 total_unclaimed_rewards += user.unclaimed_rewards.clone();
@@ -228,7 +231,6 @@ async fn compute_liquid_supply(
 
                     total_vested += total_amount_vested;
                     total_vesting += total_amount_still_vesting.clone();
-
 
                     // this can happen because the delegated vesting number is only updated on undelegation / rewards withdraw
                     // while our total amount still vesting is pro-rated to find the current amount
@@ -284,7 +286,8 @@ async fn compute_liquid_supply(
 /// Dispatching utility function for building an array of joinable futures containing sets of batch requests
 async fn get_balances_for_accounts(
     input: Vec<AccountType>,
-    denom: String,
+    denom: &str,
+    grpc: &str,
 ) -> Result<Vec<UserInfo>, CosmosGrpcError> {
     // handed tuned parameter for the ideal number of queryes per BankQueryClient
     const BATCH_SIZE: usize = 500;
@@ -299,11 +302,12 @@ async fn get_balances_for_accounts(
     while index + BATCH_SIZE < input.len() - 1 {
         futs.push(batch_query_user_information(
             &input[index..index + BATCH_SIZE],
-            denom.clone(),
+            denom,
+            grpc,
         ));
         index += BATCH_SIZE;
     }
-    futs.push(batch_query_user_information(&input[index..], denom.clone()));
+    futs.push(batch_query_user_information(&input[index..], denom, grpc));
 
     let executed_futures = join_all(futs).await;
     let mut balances = Vec::new();
@@ -318,16 +322,17 @@ async fn get_balances_for_accounts(
 /// make it worth our while
 async fn batch_query_user_information(
     input: &[AccountType],
-    denom: String,
+    denom: &str,
+    grpc: &str,
 ) -> Result<Vec<UserInfo>, CosmosGrpcError> {
     trace!("Starting batch of {}", input.len());
-    let mut bankrpc = BankQueryClient::connect(GRAVITY_NODE_GRPC)
+    let mut bankrpc = BankQueryClient::connect(grpc.to_string())
         .await?
         .accept_gzip();
-    let mut distrpc = DistQueryClient::connect(GRAVITY_NODE_GRPC)
+    let mut distrpc = DistQueryClient::connect(grpc.to_string())
         .await?
         .accept_gzip();
-    let mut stakingrpc = StakingQueryClient::connect(GRAVITY_NODE_GRPC)
+    let mut stakingrpc = StakingQueryClient::connect(grpc.to_string())
         .await?
         .accept_gzip();
 
@@ -335,7 +340,7 @@ async fn batch_query_user_information(
     for account in input {
         let res = merge_user_information(
             account.clone(),
-            denom.clone(),
+            denom.to_string(),
             &mut bankrpc,
             &mut distrpc,
             &mut stakingrpc,
@@ -447,15 +452,30 @@ struct UserInfo {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        DEFAULT_BLOCK_PER_DAY, DEFAULT_DENOM, DEFAULT_ETH_BLOCK_TIME, DEFAULT_ETH_LOOP_TIME,
+        DEFAULT_HOST, DEFAULT_LOOP_TIME, DEFAULT_PORT, DEFAULT_PREFIX, DEFAULT_REQUEST_TIMEOUT,
+    };
+
     use super::*;
 
     #[actix_web::test]
     async fn test_vesting_query() {
         env_logger::init();
-        let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
-        let supply = compute_liquid_supply(&contact, GRAVITY_DENOM.to_string())
-            .await
-            .unwrap();
+
+        let gravity_config = GravityConfig {
+            grpc: "localhost:9090".to_string(),
+            request_timeout: DEFAULT_REQUEST_TIMEOUT,
+            prefix: DEFAULT_PREFIX.to_string(),
+            ssl: false,
+            port: DEFAULT_PORT,
+            denom: DEFAULT_DENOM.to_string(),
+            loop_time: DEFAULT_LOOP_TIME,
+            block_per_day: DEFAULT_BLOCK_PER_DAY,
+            host: DEFAULT_HOST.to_string(),
+        };
+
+        let supply = compute_liquid_supply(&gravity_config).await.unwrap();
         info!("Got a liquid supply of {:?}", supply);
     }
 }

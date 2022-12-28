@@ -1,0 +1,15 @@
+host: 0.0.0.0
+port: 9000
+ssl: false
+grpc: 'http://gravitychain.io:9090'
+prefix: 'oraib'
+denom: 'uoraib'
+blocks_per_day: 7200
+request_timeout: 30 # is seconds
+loop_time: 86400 # update once a day
+evm_chains: # prefix is optional, block_time: number of seconds per eth block
+  - prefix: 'bsc'
+    rpc: 'https://mainnet.infura.io/v3/'
+    finality_delay: 100
+    block_time: 12
+    loop_time: 30

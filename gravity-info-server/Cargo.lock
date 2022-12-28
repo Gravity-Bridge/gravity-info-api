@@ -561,7 +561,7 @@ dependencies = [
 [[package]]
 name = "cosmos_gravity"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=9da771a2ca8e065f49d5f4daf6b051a5e3013f40#9da771a2ca8e065f49d5f4daf6b051a5e3013f40"
 dependencies = [
  "bytes",
  "clarity",
@@ -705,7 +705,7 @@ dependencies = [
 [[package]]
 name = "ethereum_gravity"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=9da771a2ca8e065f49d5f4daf6b051a5e3013f40#9da771a2ca8e065f49d5f4daf6b051a5e3013f40"
 dependencies = [
  "clarity",
  "deep_space",
@@ -888,6 +888,7 @@ dependencies = [
  "rustls-pemfile 0.3.0",
  "serde",
  "serde_derive",
+ "serde_yaml",
  "tonic",
  "web30",
 ]
@@ -895,7 +896,7 @@ dependencies = [
 [[package]]
 name = "gravity_proto"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=9da771a2ca8e065f49d5f4daf6b051a5e3013f40#9da771a2ca8e065f49d5f4daf6b051a5e3013f40"
 dependencies = [
  "cosmos-sdk-proto-althea",
  "deep_space",
@@ -907,7 +908,7 @@ dependencies = [
 [[package]]
 name = "gravity_utils"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=c440d8056221125275751d9d231bd5dec07cf7e8#c440d8056221125275751d9d231bd5dec07cf7e8"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=9da771a2ca8e065f49d5f4daf6b051a5e3013f40#9da771a2ca8e065f49d5f4daf6b051a5e3013f40"
 dependencies = [
  "clarity",
  "deep_space",
@@ -1861,6 +1862,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml"
+version = "0.9.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92b5b431e8907b50339b51223b97d102db8d987ced36f6e4d03621db9316c834"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2270,6 +2284,12 @@ checksum = "5c5713f0fc4b5db668a2ac63cdb7bb4469d8c9fed047b1d0292cc7b0ce2ba921"
 dependencies = [
  "tinyvec",
 ]
+
+[[package]]
+name = "unsafe-libyaml"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc7ed8ba44ca06be78ea1ad2c3682a43349126c8818054231ee6f4748012aed2"
 
 [[package]]
 name = "untrusted"
