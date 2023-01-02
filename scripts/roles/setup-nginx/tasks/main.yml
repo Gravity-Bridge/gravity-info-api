@@ -15,8 +15,15 @@
 - name: ISSUE CERT
   shell: certbot --nginx -d {{domain}} --email justin@althea.net --noninteractive --agree-tos --redirect --expand
 
-- name: Setup cron
-  command: 'echo "0 0,12 * * * root python3 -c ''import random; import time; time.sleep(random.random() * 3600)'' && /usr/local/bin/certbot-auto renew -q" | sudo tee -a /etc/crontab > /dev/null'
+- name: Setup certbot-renew cron
+  ansible.builtin.cron:
+    name: certbot-renew
+    minute: 0
+    hour: 0,12
+    user: root
+    job: >
+      python3 -c ''import random; import time; time.sleep(random.random() * 3600)''
+      /usr/local/bin/certbot renew -q | sudo tee -a /etc/crontab > /dev/null
 
 - name: Set Nginx to run on startup
   systemd:
