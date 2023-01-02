@@ -233,6 +233,10 @@ fn sum_logs(
         let from = EthAddress::from_slice(&l.topics[1][12..32])?;
         let to = EthAddress::from_slice(&l.topics[2][12..32])?;
         let amount = Uint256::from_bytes_be(&l.data[0..32]);
+        if amount > u128::MAX.into() {
+            warn!("Found contract deploy!");
+            continue;
+        }
         // unit conversion to get to whole dollars float caveats about
         // rounding errors apply
         let amount: f64 = amount.to_string().parse().unwrap();
