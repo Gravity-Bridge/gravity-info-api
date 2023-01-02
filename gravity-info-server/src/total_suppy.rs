@@ -32,6 +32,10 @@ pub const GRAVITY_DENOM: &str = "ugraviton";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChainTotalSupplyNumbers {
+    /// The total amount of Graviton tokens currently in existance including those vesting and in the community pool
+    pub total_supply: Uint256,
+    /// The total amount of Gravition in the community pool
+    pub community_pool: Uint256,
     /// All tokens that are 'liquid' meaning in a balance, claimable now as rewards
     /// or staked and eligeable to withdraw and spend, essentially just exludes vesting
     pub total_liquid_supply: Uint256,
@@ -97,6 +101,25 @@ async fn compute_liquid_supply(
     contact: &Contact,
     denom: String,
 ) -> Result<ChainTotalSupplyNumbers, CosmosGrpcError> {
+    // lets do the easy totals first, grand total and communiy pool
+    let totals = contact.query_total_supply().await?;
+    let mut total_supply = None;
+    for i in totals {
+        if i.denom == denom {
+            total_supply = Some(i.amount);
+        }
+    }
+    let total_supply = total_supply.unwrap();
+
+    let mut community_pool = None;
+    let pool_totals = contact.query_community_pool().await?;
+    for i in pool_totals {
+        if i.denom == denom {
+            community_pool = Some(i.amount);
+        }
+    }
+    let community_pool = community_pool.unwrap();
+
     let start = Instant::now();
     info!("Starting get all accounts");
     // start by getting every account on chain and every balance for every account
@@ -229,7 +252,6 @@ async fn compute_liquid_supply(
                     total_vested += total_amount_vested;
                     total_vesting += total_amount_still_vesting.clone();
 
-
                     // this can happen because the delegated vesting number is only updated on undelegation / rewards withdraw
                     // while our total amount still vesting is pro-rated to find the current amount
                     let vesting_in_balance = if total_amount_still_vesting > total_delegated_vesting
@@ -278,6 +300,8 @@ async fn compute_liquid_supply(
         total_vesting,
         total_vesting_staked,
         total_vested,
+        total_supply,
+        community_pool,
     })
 }
 

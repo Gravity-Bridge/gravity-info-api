@@ -319,6 +319,8 @@ function App() {
             <CardTitle tag="h4">
               Gravity Supply Info
             </CardTitle>
+            <div style={{ fontSize: 15 }}>Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M Graviton</div>
+            <div style={{ fontSize: 15 }}>Community Pool: {(supplyInfo.community_pool / 10 ** 12).toFixed(2)}M Graviton</div>
             <div style={{ fontSize: 15 }}>Liquid (Not Vesting): {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M Graviton</div>
             <div style={{ fontSize: 15 }}>Liquid (Not Vesting) and staked: {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}M Graviton</div>
             <div style={{ fontSize: 15 }}>Unclaimed staking rewards: {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}M Graviton</div>
