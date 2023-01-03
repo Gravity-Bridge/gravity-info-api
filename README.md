@@ -277,7 +277,7 @@ Provides the total supply of GRAV, or any Cosmos chain the server software is po
 
 Provides the total liquid supply of GRAV, or any Cosmos chain the server software is pointed at. Liquid supply excludes only module tokens and vesting tokens. Staked tokens and unclaimed rewards count in the total. Value return is ugravition and must be divided by `1*10^6` to display whole tokens. This value is updated once a day.
 
-- URL: `https://info.gravitychain.io:9000/total_supply`
+- URL: `https://info.gravitychain.io:9000/total_liquid_supply`
 - Method: `GET`
 - URL Params: `None`
 - Data Params: `None`
@@ -293,7 +293,7 @@ Provides the total liquid supply of GRAV, or any Cosmos chain the server softwar
 
 - Sample Call:
 
-`curl https://info.gravitychain.io:9000/total_supply`
+`curl https://info.gravitychain.io:9000/total_liquid_supply`
 
 ---
 
