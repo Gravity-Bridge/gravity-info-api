@@ -29,6 +29,10 @@ use crate::gravity_info::GravityConfig;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChainTotalSupplyNumbers {
+    /// The total amount of Graviton tokens currently in existance including those vesting and in the community pool
+    pub total_supply: Uint256,
+    /// The total amount of Gravition in the community pool
+    pub community_pool: Uint256,
     /// All tokens that are 'liquid' meaning in a balance, claimable now as rewards
     /// or staked and eligeable to withdraw and spend, essentially just exludes vesting
     pub total_liquid_supply: Uint256,
@@ -98,6 +102,24 @@ async fn compute_liquid_supply(
         &gravity_config.prefix,
     )
     .unwrap();
+    // lets do the easy totals first, grand total and communiy pool
+    let totals = contact.query_total_supply().await?;
+    let mut total_supply = None;
+    for i in totals {
+        if i.denom == gravity_config.denom {
+            total_supply = Some(i.amount);
+        }
+    }
+    let total_supply = total_supply.unwrap();
+
+    let mut community_pool = None;
+    let pool_totals = contact.query_community_pool().await?;
+    for i in pool_totals {
+        if i.denom == gravity_config.denom {
+            community_pool = Some(i.amount);
+        }
+    }
+    let community_pool = community_pool.unwrap();
 
     let start = Instant::now();
     info!("Starting get all accounts");
@@ -280,6 +302,8 @@ async fn compute_liquid_supply(
         total_vesting,
         total_vesting_staked,
         total_vested,
+        total_supply,
+        community_pool,
     })
 }
 
@@ -453,8 +477,8 @@ struct UserInfo {
 #[cfg(test)]
 mod tests {
     use crate::{
-        DEFAULT_BLOCK_PER_DAY, DEFAULT_DENOM, DEFAULT_ETH_BLOCK_TIME, DEFAULT_ETH_LOOP_TIME,
-        DEFAULT_HOST, DEFAULT_LOOP_TIME, DEFAULT_PORT, DEFAULT_PREFIX, DEFAULT_REQUEST_TIMEOUT,
+        DEFAULT_BLOCK_PER_DAY, DEFAULT_DENOM, DEFAULT_HOST, DEFAULT_LOOP_TIME, DEFAULT_PORT,
+        DEFAULT_PREFIX, DEFAULT_REQUEST_TIMEOUT,
     };
 
     use super::*;
@@ -464,7 +488,7 @@ mod tests {
         env_logger::init();
 
         let gravity_config = GravityConfig {
-            grpc: "localhost:9090".to_string(),
+            grpc: "http://localhost:9090".to_string(),
             request_timeout: DEFAULT_REQUEST_TIMEOUT,
             prefix: DEFAULT_PREFIX.to_string(),
             ssl: false,

@@ -251,7 +251,7 @@ Provides parsed Ethereum events from the [Gravity Bridge solidity contract](http
 
 ### /total_supply
 
-Provides the total liquid supply of GRAV, or any Cosmos chain the server software is pointed at. Liquid supply excludes only module tokens and vesting tokens. Staked tokens and unclaimed rewards count in the total. Value return is ugravition and must be divided by `1*10^6` to display whole tokens. This value is updated once a day.
+Provides the total supply of GRAV, or any Cosmos chain the server software is pointed at. This is inclusive of the community pool, vesting tokens, staked tokens, and unclaimed rewards. Value return is ugravition and must be divided by `1*10^6` to display whole tokens. This value is updated once a day.
 
 - URL: `https://info.gravitychain.io:9000/total_supply`
 - Method: `GET`
@@ -273,9 +273,42 @@ Provides the total liquid supply of GRAV, or any Cosmos chain the server softwar
 
 ---
 
+### /total_liquid_supply
+
+Provides the total liquid supply of GRAV, or any Cosmos chain the server software is pointed at. Liquid supply excludes only module tokens and vesting tokens. Staked tokens and unclaimed rewards count in the total. Value return is ugravition and must be divided by `1*10^6` to display whole tokens. This value is updated once a day.
+
+- URL: `https://info.gravitychain.io:9000/total_liquid_supply`
+- Method: `GET`
+- URL Params: `None`
+- Data Params: `None`
+- Success Response:
+  - Code: 200 OK
+  - Contents:
+
+```
+"423746179291553"
+```
+
+- Error Response: `500 Server Error`
+
+- Sample Call:
+
+`curl https://info.gravitychain.io:9000/total_liquid_supply`
+
+---
+
 ### /supply_info
 
 Provides a breakdown of vesting versus non-vesting tokens for Gravity Bridge, value returned are in ugravition and must be divided by `1*10^6` to display whole tokens. This value is updated once a day.
+
+* total_supply: The total supply of tokens in existance.
+* community_pool: The total amount of tokens in the community pool subject to use by governance vote
+* total_liquid_supply: All tokens that are not vesting and not in the community pool, this includes staked tokens and unclaimed staking rewards.
+* total_liquid_balances: Tokens that are avaialble to be sent immeidately, so tokens that are not staked and not vesting.
+* total_nonvesting_staked: These tokens are liquid (eg not vesting) and currently staked.
+* total_vesting: A sum of all tokens that are not yet vested but will become liquid at some point in the future.
+* total_vesting_staked: All tokens that are vesting and also staked
+* total_vested: The amount of tokens that where once vesting but are now liquid
 
 - URL: `https://info.gravitychain.io:9000/supply_info`
 - Method: `GET`
@@ -287,14 +320,17 @@ Provides a breakdown of vesting versus non-vesting tokens for Gravity Bridge, va
 
 ```
 {
-  "total_liquid_supply": "423746179291553",
-  "total_liquid_balances": "180142620528758",
-  "total_unclaimed_rewards": "81132610438320",
-  "total_nonvesting_staked": "162470948324475",
-  "total_vesting": "1072829096565243",
-  "total_vesting_staked": "896442811148458",
-  "total_vested": "0"
+  "total_supply": "2489386289699730",
+  "community_pool": "938460578037767",
+  "total_liquid_supply": "475122384773913",
+  "total_liquid_balances": "151777718973370",
+  "total_unclaimed_rewards": "107181985809999",
+  "total_nonvesting_staked": "192953527166768",
+  "total_vesting": "1050344613544263",
+  "total_vesting_staked": "897039356148458",
+  "total_vested": "22484483020980"
 }
+
 
 ```
 

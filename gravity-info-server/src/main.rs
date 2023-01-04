@@ -52,6 +52,16 @@ impl Default for Params {
 async fn get_total_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
+        Some(v) => HttpResponse::Ok().json(v.total_supply),
+        None => HttpResponse::InternalServerError()
+            .json("Info not yet generated, please query in 5 minutes"),
+    }
+}
+
+#[get("/total_liquid_supply")]
+async fn get_total_liquid_supply() -> impl Responder {
+    // if we have already computed supply info return it, if not return an error
+    match get_supply_info() {
         Some(v) => HttpResponse::Ok().json(v.total_liquid_supply),
         None => HttpResponse::InternalServerError()
             .json("Info not yet generated, please query in 5 minutes"),
@@ -192,6 +202,7 @@ async fn main() -> std::io::Result<()> {
                     .allow_any_method(),
             )
             .service(get_total_supply)
+            .service(get_total_liquid_supply)
             .service(get_all_supply_info)
             .service(get_eth_bridge_info)
             .service(get_gravity_bridge_info)

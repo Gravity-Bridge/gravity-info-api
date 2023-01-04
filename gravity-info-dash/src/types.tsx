@@ -60,6 +60,8 @@ export type GravityInfo = {
 }
 
 export type ChainTotalSupplyNumbers = {
+    community_pool: number,
+    total_supply: number,
     total_liquid_supply: number,
     total_liquid_balances: number,
     total_unclaimed_rewards: number,
