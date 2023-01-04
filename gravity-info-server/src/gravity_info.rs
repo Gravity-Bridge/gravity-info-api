@@ -299,9 +299,14 @@ pub struct DepositWithMetadata {
 }
 
 impl DepositWithMetadata {
-    pub fn convert(input: SendToCosmosEvent, current_eth_height: Uint256) -> Option<Self> {
+    /// Converts an event 
+    pub fn convert(input: SendToCosmosEvent, current_eth_height: Uint256, current_final_height: Uint256) -> Option<Self> {
         let finished =
-            current_eth_height.clone() - input.block_height.clone() > FINALITY_DELAY.into();
+        if input.block_height < current_final_height {
+            true
+        } else { 
+            current_eth_height.clone() - input.block_height.clone() > FINALITY_DELAY.into()
+        };
         // height at which Gravity will see this tx
         let confirm_height = input.block_height.clone() + FINALITY_DELAY.into();
         let blocks_until_confirmed: Uint256 = if finished {
@@ -375,6 +380,7 @@ async fn query_eth_info(
     gravity_contract_address: EthAddress,
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
+    let latest_finalized_block = web3.eth_get_finalized_block().await?.number;
     let starting_block = latest_block.clone() - 7_200u16.into();
 
     let deposits = web3.check_for_events(
@@ -437,7 +443,7 @@ async fn query_eth_info(
 
     let mut deposit_events = Vec::new();
     for d in deposits {
-        let d = DepositWithMetadata::convert(d, latest_block.clone());
+        let d = DepositWithMetadata::convert(d, latest_block.clone(), latest_finalized_block.clone());
         if let Some(d) = d {
             deposit_events.push(d);
         }
