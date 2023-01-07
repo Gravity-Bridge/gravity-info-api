@@ -13,8 +13,12 @@
   }
 }
 
+.card-title {
+  margin-top: 0;
+}
+
 .App-header {
-  background-color: #4441BE;
+  background-color: #141416;
   min-height: 100vh;
   display: flex;
   flex-direction: flex;
@@ -24,7 +28,7 @@
   color: white;
 }
 .ParametersCard {
-  background-color: lightslategray;
+  background: linear-gradient(180deg, rgba(47,41,65,1) 0%, rgba(0,0,0,1) 94%, rgba(0,0,0,1) 100%);
   font-size: calc(4px + 2vmin);
 }
 a:link {

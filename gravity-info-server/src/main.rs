@@ -52,9 +52,9 @@ impl Default for Params {
 async fn get_total_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v.total_supply),
+        Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -62,9 +62,9 @@ async fn get_total_supply() -> impl Responder {
 async fn get_total_liquid_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v.total_liquid_supply),
+        Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -74,7 +74,7 @@ async fn get_all_supply_info() -> impl Responder {
     match get_supply_info() {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -86,7 +86,7 @@ async fn get_eth_bridge_info(req: HttpRequest) -> impl Responder {
     match get_eth_info(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -98,7 +98,7 @@ async fn get_gravity_bridge_info(req: HttpRequest) -> impl Responder {
     match get_gravity_info(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -110,7 +110,7 @@ async fn erc20_metadata(req: HttpRequest) -> impl Responder {
     match get_erc20_metadata(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -122,7 +122,7 @@ async fn get_bridge_volume(req: HttpRequest) -> impl Responder {
     match get_volume_info(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .body("Info not yet generated, please query in 5 minutes"),
     }
 }
 
