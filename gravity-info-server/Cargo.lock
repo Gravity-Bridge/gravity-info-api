@@ -554,7 +554,7 @@ dependencies = [
 [[package]]
 name = "cosmos_gravity"
 version = "0.1.0"
-source = "git+https://github.com/oraichain/Gravity-Bridge?rev=ff2d93e#ff2d93eec3c808ca1807834ff9963f30105593d5"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=24cb5c9#24cb5c9fd821aa8d3e6122ac6536f1fd08ca5050"
 dependencies = [
  "bytes",
  "clarity",
@@ -720,7 +720,7 @@ dependencies = [
 [[package]]
 name = "ethereum_gravity"
 version = "0.1.0"
-source = "git+https://github.com/oraichain/Gravity-Bridge?rev=ff2d93e#ff2d93eec3c808ca1807834ff9963f30105593d5"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=24cb5c9#24cb5c9fd821aa8d3e6122ac6536f1fd08ca5050"
 dependencies = [
  "clarity",
  "deep_space",
@@ -920,7 +920,7 @@ dependencies = [
 [[package]]
 name = "gravity_proto"
 version = "0.1.0"
-source = "git+https://github.com/oraichain/Gravity-Bridge?rev=ff2d93e#ff2d93eec3c808ca1807834ff9963f30105593d5"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=24cb5c9#24cb5c9fd821aa8d3e6122ac6536f1fd08ca5050"
 dependencies = [
  "cosmos-sdk-proto-althea",
  "deep_space",
@@ -932,7 +932,7 @@ dependencies = [
 [[package]]
 name = "gravity_utils"
 version = "0.1.0"
-source = "git+https://github.com/oraichain/Gravity-Bridge?rev=ff2d93e#ff2d93eec3c808ca1807834ff9963f30105593d5"
+source = "git+https://github.com/oraichain/Gravity-Bridge?rev=24cb5c9#24cb5c9fd821aa8d3e6122ac6536f1fd08ca5050"
 dependencies = [
  "clarity",
  "deep_space",

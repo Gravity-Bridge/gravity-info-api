@@ -153,7 +153,13 @@ pub fn blockchain_info_thread(gravity_config: GravityConfig) {
                         .await
                     {
                         Ok(v) => {
-                            let bridge_eth_address = v.params.bridge_ethereum_address;
+                            let evm_chain_params = v
+                                .params
+                                .evm_chain_params
+                                .iter()
+                                .find(|p| p.evm_chain_prefix.eq(&evm_chain_config.prefix))
+                                .unwrap();
+                            let bridge_eth_address = evm_chain_params.bridge_ethereum_address;
                             set_gravity_info(&evm_chain_config.prefix, v);
                             info!("Successfully updated Gravity info");
                             bridge_eth_address
@@ -411,37 +417,51 @@ impl DepositWithMetadata {
 
 /// A serializable version of the Gravity Params
 #[derive(Debug, Default, Clone, Serialize)]
-pub struct InternalGravityParams {
+pub struct InternalEvmChainGravityParams {
+    pub evm_chain_prefix: String,
     pub bridge_ethereum_address: EthAddress,
-    pub average_block_time: u64,
     pub average_ethereum_block_time: u64,
-    pub target_batch_timeout: u64,
-    pub bridge_active: bool,
-    pub ethereum_blacklist: Vec<EthAddress>,
     pub gravity_id: String,
     pub bridge_chain_id: u64,
+    pub bridge_active: bool,
+    pub ethereum_blacklist: Vec<EthAddress>,
+}
+
+/// A serializable version of the Gravity Params
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct InternalGravityParams {
+    pub average_block_time: u64,
+    pub target_batch_timeout: u64,
     pub signed_valsets_window: u64,
     pub signed_batches_window: u64,
     pub signed_logic_calls_window: u64,
     pub unbond_slashing_valsets_window: u64,
     pub valset_reward: Option<Coin>,
+    pub evm_chain_params: Vec<InternalEvmChainGravityParams>,
 }
 
 impl From<GravityParams> for InternalGravityParams {
     fn from(p: GravityParams) -> Self {
         InternalGravityParams {
-            bridge_ethereum_address: p.bridge_ethereum_address.parse().unwrap(),
-            average_block_time: p.average_block_time,
-            average_ethereum_block_time: p.average_ethereum_block_time,
-            bridge_active: p.bridge_active,
-            target_batch_timeout: p.target_batch_timeout,
-            ethereum_blacklist: p
-                .ethereum_blacklist
+            evm_chain_params: p
+                .evm_chain_params
                 .into_iter()
-                .map(|a| a.parse().unwrap())
+                .map(|ep| InternalEvmChainGravityParams {
+                    evm_chain_prefix: ep.evm_chain_prefix,
+                    bridge_ethereum_address: ep.bridge_ethereum_address.parse().unwrap(),
+                    average_ethereum_block_time: ep.average_ethereum_block_time,
+                    bridge_active: ep.bridge_active,
+                    ethereum_blacklist: ep
+                        .ethereum_blacklist
+                        .into_iter()
+                        .map(|a| a.parse().unwrap())
+                        .collect(),
+                    gravity_id: ep.gravity_id,
+                    bridge_chain_id: ep.bridge_chain_id,
+                })
                 .collect(),
-            gravity_id: p.gravity_id,
-            bridge_chain_id: p.bridge_chain_id,
+            target_batch_timeout: p.target_batch_timeout,
+            average_block_time: p.average_block_time,
             signed_valsets_window: p.signed_valsets_window,
             signed_batches_window: p.signed_batches_window,
             signed_logic_calls_window: p.signed_logic_calls_window,

@@ -479,7 +479,7 @@ mod tests {
         env_logger::init();
 
         let gravity_config = GravityConfig {
-            grpc: "http://localhost:9090".to_string(),
+            grpc: "http://gravitychain.io:9090".to_string(),
             request_timeout: DEFAULT_REQUEST_TIMEOUT,
             prefix: DEFAULT_PREFIX.to_string(),
             ssl: false,

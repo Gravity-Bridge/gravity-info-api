@@ -68,9 +68,15 @@ pub fn bridge_volume_thread(gravity_config: GravityConfig) {
                 let web3 = Web3::new(&evm_chain_config.rpc, contact.get_timeout());
 
                 let metadata = get_erc20_metadata(&evm_chain_config.prefix);
-                let params = get_gravity_info(&evm_chain_config.prefix);
-                if let (Some(metadata), Some(params)) = (metadata, params) {
-                    let gravity_contract_address = params.params.bridge_ethereum_address;
+                let gravity_params = get_gravity_info(&evm_chain_config.prefix);
+                if let (Some(metadata), Some(gravity_params)) = (metadata, gravity_params) {
+                    let evm_chain_params = gravity_params
+                        .params
+                        .evm_chain_params
+                        .iter()
+                        .find(|p| p.evm_chain_prefix.eq(&evm_chain_config.prefix))
+                        .unwrap();
+                    let gravity_contract_address = evm_chain_params.bridge_ethereum_address;
                     let latest_block = match web3.eth_block_number().await {
                         Ok(v) => v,
                         Err(e) => {
