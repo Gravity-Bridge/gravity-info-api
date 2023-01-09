@@ -60,11 +60,6 @@ async fn get_total_supply() -> impl Responder {
     }
 }
 
-#[get("/evm_chain_configs")]
-async fn get_all_evm_chain_configs() -> impl Responder {
-    HttpResponse::Ok().json(get_evm_chain_configs())
-}
-
 #[get("/total_liquid_supply")]
 async fn get_total_liquid_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
@@ -133,6 +128,11 @@ async fn get_bridge_volume(req: HttpRequest) -> impl Responder {
     }
 }
 
+#[get("/evm_chain_configs")]
+async fn get_all_evm_chain_configs() -> impl Responder {
+    HttpResponse::Ok().json(get_evm_chain_configs())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config_path = format!(
@@ -160,6 +160,7 @@ async fn main() -> std::io::Result<()> {
             block_time: evm_chain["block_time"]
                 .as_u64()
                 .unwrap_or(DEFAULT_ETH_BLOCK_TIME),
+            sender: evm_chain["sender"].as_str().unwrap().parse().unwrap(),
         })
         .collect();
 
@@ -217,6 +218,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_gravity_bridge_info)
             .service(erc20_metadata)
             .service(get_bridge_volume)
+            .service(get_all_evm_chain_configs)
     });
 
     log::info!(

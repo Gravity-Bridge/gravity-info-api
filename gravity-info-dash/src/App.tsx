@@ -64,10 +64,15 @@ function App() {
     []
   );
 
-  const [evmChainPrefix, setEvmChainPrefix] = useState<string>('oraib');
+  const [evmChainPrefix, setEvmChainPrefix] = useState<string | null>(null);
 
   const getEvmChainConfigs = async () => {
-    await callMethodFromUrl('evm_chain_configs', setEvmChainConfigs);
+    await callMethodFromUrl('evm_chain_configs', (json: EvmChainConfig[]) => {
+      if (json.length) {
+        setEvmChainPrefix(json[0].prefix);
+        setEvmChainConfigs(json);
+      }
+    });
   };
 
   const getGravityInfo = async () => {
@@ -79,7 +84,7 @@ function App() {
   const getEthInfo = async () => {
     await callMethodFromUrl(
       `eth_bridge_info?evm_chain_prefix=${evmChainPrefix}`,
-      (json: any) => {
+      (json: EthInfo) => {
         // reverse so these show up in reverse cronological order
         json.batch_events.reverse();
         json.deposit_events.reverse();
@@ -110,16 +115,24 @@ function App() {
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    const interval = setInterval(() => {
-      getDistributionInfo();
-      getGravityInfo();
-      getEthInfo();
-      getErc20Metadata();
-      getVolumeInfo();
-    }, UPDATE_TIME);
+    let interval: any = null;
+    // only running when there is evmChainPrefix
+    if (evmChainPrefix) {
+      const update = async () => {
+        await Promise.all([
+          getDistributionInfo(),
+          getGravityInfo(),
+          getEthInfo(),
+          getErc20Metadata(),
+          getVolumeInfo()
+        ]);
+        interval = setTimeout(update, UPDATE_TIME);
+      };
+      update();
+    }
     return () => clearInterval(interval);
     //eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [evmChainPrefix]);
 
   if (
     gravityBridgeInfo == null ||
@@ -160,11 +173,18 @@ function App() {
               style={{ borderRadius: 8, padding: 20 }}
             >
               <CardBody>
-                <CardTitle tag="h4">Evm chain prefix</CardTitle>
-                <ButtonGroup>
+                <CardTitle tag="h4">Evm chains</CardTitle>
+                <ButtonGroup size="sm">
                   {evmChainConfigs.map((evmChainConfig) => (
                     <Button
-                      onClick={() => setEvmChainPrefix(evmChainConfig.prefix)}
+                      outline
+                      color="primary"
+                      title={evmChainConfig.rpc}
+                      active={evmChainConfig.prefix === evmChainPrefix}
+                      key={evmChainConfig.prefix}
+                      onClick={() => {
+                        setEvmChainPrefix(evmChainConfig.prefix);
+                      }}
                     >
                       {evmChainConfig.prefix}
                     </Button>
@@ -256,7 +276,12 @@ function App() {
                   reqested when the fee amount exceeds the cost to execute on
                   Ethereum
                 </CardSubtitle>
-                <Table style={{ borderSpacing: 10, fontSize: 15 }}>
+                <Table
+                  borderless
+                  size="sm"
+                  responsive
+                  style={{ borderSpacing: 10, fontSize: 15 }}
+                >
                   <thead>
                     <tr>
                       <th>Token</th>

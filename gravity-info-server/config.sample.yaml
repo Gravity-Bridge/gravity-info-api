@@ -9,7 +9,8 @@ request_timeout: 30 # is seconds
 loop_time: 86400 # update once a day
 evm_chains: # prefix is optional, block_time: number of seconds per eth block
   - prefix: bsc
-    rpc: https://data-seed-prebsc-1-s1.binance.org:8545
+    rpc: https://bsc-dataseed2.defibit.io
     finality_delay: 100
     block_time: 12
     loop_time: 30
+    sender: 0x388C818CA8B9251b393131C08a736A67ccB19297

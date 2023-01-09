@@ -47,6 +47,7 @@ pub struct EvmChainConfig {
     pub finality_delay: u64,
     pub block_time: u64,
     pub loop_time: Duration,
+    pub sender: EthAddress,
 }
 
 /// In memory store of gravity state used to serve rpc requests
@@ -174,6 +175,7 @@ pub fn blockchain_info_thread(gravity_config: GravityConfig) {
                     &web30,
                     &mut grpc_client,
                     &evm_chain_config.prefix,
+                    evm_chain_config.sender,
                 );
                 let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
                 let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
@@ -205,6 +207,7 @@ async fn get_all_erc20_metadata(
     web30: &Web3,
     grpc_client: &mut GravityQueryClient<Channel>,
     evm_chain_prefix: &str,
+    query_sender: EthAddress,
 ) -> Result<Vec<Erc20Metadata>, GravityError> {
     let all_tokens_on_gravity = contact.query_total_supply().await?;
     let mut futs = Vec::new();
@@ -227,7 +230,7 @@ async fn get_all_erc20_metadata(
                 Err(_) => continue,
             }
         };
-        futs.push(get_metadata(web30, erc20));
+        futs.push(get_metadata(web30, erc20, query_sender));
     }
     let results = join_all(futs).await;
     let mut metadata = Vec::new();
@@ -239,10 +242,11 @@ async fn get_all_erc20_metadata(
     Ok(metadata)
 }
 
-async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, GravityError> {
-    let query_sender: EthAddress = "0x388C818CA8B9251b393131C08a736A67ccB19297"
-        .parse()
-        .unwrap();
+async fn get_metadata(
+    web30: &Web3,
+    erc20: EthAddress,
+    query_sender: EthAddress,
+) -> Result<Erc20Metadata, GravityError> {
     let symbol = web30.get_erc20_symbol(erc20, query_sender);
     let decimals = web30.get_erc20_decimals(erc20, query_sender);
     let (symbol, decimals) = join(symbol, decimals).await;
