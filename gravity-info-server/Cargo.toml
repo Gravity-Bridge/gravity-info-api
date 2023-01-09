@@ -6,23 +6,23 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethereum_gravity = {git = "https://github.com/oraichain/Gravity-Bridge", rev="9da771a2ca8e065f49d5f4daf6b051a5e3013f40"}
-cosmos_gravity = {git = "https://github.com/oraichain/Gravity-Bridge", rev="9da771a2ca8e065f49d5f4daf6b051a5e3013f40"}
-gravity_utils = {git = "https://github.com/oraichain/Gravity-Bridge", rev="9da771a2ca8e065f49d5f4daf6b051a5e3013f40"}
-gravity_proto = {git = "https://github.com/oraichain/Gravity-Bridge", rev="9da771a2ca8e065f49d5f4daf6b051a5e3013f40"}
-deep_space = "2"
-web30 = "0.19"
+ethereum_gravity = {git = "https://github.com/oraichain/Gravity-Bridge", rev="ff2d93e"}
+cosmos_gravity = {git = "https://github.com/oraichain/Gravity-Bridge", rev="ff2d93e"}
+gravity_utils = {git = "https://github.com/oraichain/Gravity-Bridge", rev="ff2d93e"}
+gravity_proto = {git = "https://github.com/oraichain/Gravity-Bridge", rev="ff2d93e"}
+deep_space = {git = "https://github.com/oraichain/deep_space.git", rev = "18991f6"}
+web30 = "0.22"
 clarity = "0.5"
 serde_derive = "1"
 serde = { version = "1.0", features = ["derive"] }
-env_logger = "0.9"
+env_logger = "0.10"
 log = "0.4"
 actix-web = {version = "4.2", features = ["rustls"]}
 actix-cors = "0.6"
 rustls = "0.20"
 rustls-pemfile = "0.3"
 lazy_static = "1.4"
-tonic = "0.7"
+tonic = "0.8"
 futures = "0.3"
 num256 = "0.3"
 openssl-probe = "0.1"

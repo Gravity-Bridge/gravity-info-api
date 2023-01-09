@@ -6,6 +6,8 @@ import {
   CardTitle,
   Card,
   CardSubtitle,
+  ButtonGroup,
+  Button,
   Table
 } from 'reactstrap';
 import {
@@ -18,7 +20,8 @@ import {
   GravityInfo,
   DepositWithMetadata,
   TransactionBatch,
-  VolumeInfo
+  VolumeInfo,
+  EvmChainConfig
 } from './types';
 
 // 5 seconds
@@ -26,6 +29,24 @@ const UPDATE_TIME = 5000;
 export const SERVER_URL = (
   process.env.REACT_APP_BACKEND_PORT || window.location.origin
 ).replace(/\/?$/, '/');
+
+const callMethodFromUrl = async (url: string, callback: Function) => {
+  const request_url = SERVER_URL + url;
+  const requestOptions: any = {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    }
+  };
+  try {
+    const result = await fetch(request_url, requestOptions);
+    const json = await result.json();
+    callback(json);
+  } catch (ex) {
+    console.log(ex);
+  }
+};
 
 function App() {
   document.title = 'Gravity Bridge Info';
@@ -39,88 +60,53 @@ function App() {
     useState<Array<Erc20Metadata> | null>(null);
   const [volumeInfo, setVolumeInfo] = useState<VolumeInfo | null>(null);
 
-  async function getGravityInfo() {
-    let request_url = SERVER_URL + 'gravity_bridge_info';
-    const requestOptions: any = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      }
-    };
+  const [evmChainConfigs, setEvmChainConfigs] = useState<Array<EvmChainConfig>>(
+    []
+  );
 
-    const result = await fetch(request_url, requestOptions);
-    const json = await result.json();
-    setGravityBridgeInfo(json);
-  }
-  async function getEthInfo() {
-    let request_url = SERVER_URL + 'eth_bridge_info';
-    const requestOptions: any = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      }
-    };
+  const [evmChainPrefix, setEvmChainPrefix] = useState<string>('oraib');
 
-    const result = await fetch(request_url, requestOptions);
-    const json: EthInfo = await result.json();
-    // reverse so these show up in reverse cronological order
-    json.batch_events.reverse();
-    json.deposit_events.reverse();
-    json.logic_calls.reverse();
-    json.valset_updates.reverse();
-    setEthBridgeInfo(json);
-  }
-  async function getDistributionInfo() {
-    let request_url = SERVER_URL + 'supply_info';
-    const requestOptions: any = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      }
-    };
+  const getEvmChainConfigs = async () => {
+    await callMethodFromUrl('evm_chain_configs', setEvmChainConfigs);
+  };
 
-    const result = await fetch(request_url, requestOptions);
-    const json = await result.json();
-    setSupplyInfo(json);
-  }
-  async function getErc20Metadata() {
-    let request_url = SERVER_URL + 'erc20_metadata';
-    const requestOptions: any = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
+  const getGravityInfo = async () => {
+    await callMethodFromUrl(
+      `gravity_bridge_info?evm_chain_prefix=${evmChainPrefix}`,
+      setGravityBridgeInfo
+    );
+  };
+  const getEthInfo = async () => {
+    await callMethodFromUrl(
+      `eth_bridge_info?evm_chain_prefix=${evmChainPrefix}`,
+      (json: any) => {
+        // reverse so these show up in reverse cronological order
+        json.batch_events.reverse();
+        json.deposit_events.reverse();
+        json.logic_calls.reverse();
+        json.valset_updates.reverse();
+        setEthBridgeInfo(json);
       }
-    };
-
-    const result = await fetch(request_url, requestOptions);
-    const json = await result.json();
-    setErc20Metadata(json);
-  }
-  async function getVolumeInfo() {
-    let request_url = SERVER_URL + 'bridge_volume';
-    const requestOptions: any = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      }
-    };
-
-    const result = await fetch(request_url, requestOptions);
-    const json = await result.json();
-    setVolumeInfo(json);
-  }
+    );
+  };
+  const getDistributionInfo = async () => {
+    await callMethodFromUrl('supply_info', setSupplyInfo);
+  };
+  const getErc20Metadata = async () => {
+    await callMethodFromUrl(
+      `erc20_metadata?evm_chain_prefix=${evmChainPrefix}`,
+      setErc20Metadata
+    );
+  };
+  const getVolumeInfo = async () => {
+    await callMethodFromUrl(
+      `bridge_volume?evm_chain_prefix=${evmChainPrefix}`,
+      setVolumeInfo
+    );
+  };
 
   useEffect(() => {
-    getDistributionInfo();
-    getGravityInfo();
-    getEthInfo();
-    getErc20Metadata();
-    getVolumeInfo();
+    getEvmChainConfigs();
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -168,6 +154,25 @@ function App() {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 5 }}>
+            <Card
+              className="ParametersCard"
+              style={{ borderRadius: 8, padding: 20 }}
+            >
+              <CardBody>
+                <CardTitle tag="h4">Evm chain prefix</CardTitle>
+                <ButtonGroup>
+                  {evmChainConfigs.map((evmChainConfig) => (
+                    <Button
+                      onClick={() => setEvmChainPrefix(evmChainConfig.prefix)}
+                    >
+                      {evmChainConfig.prefix}
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </CardBody>
+            </Card>
+          </div>
           <div style={{ padding: 5 }}>
             <Card
               className="ParametersCard"

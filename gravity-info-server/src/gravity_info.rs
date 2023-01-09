@@ -77,6 +77,8 @@ lazy_static! {
         Arc::new(RwLock::new(HashMap::new()));
     static ref ERC20_METADATA: Arc<RwLock<HashMap<String, Vec<Erc20Metadata>>>> =
         Arc::new(RwLock::new(HashMap::new()));
+    static ref EVM_CHAIN_CONFIGS: Arc<RwLock<Option<Vec<EvmChainConfig>>>> =
+        Arc::new(RwLock::new(None));
 }
 
 pub fn get_gravity_info(evm_chain_prefix: &str) -> Option<GravityInfo> {
@@ -110,23 +112,33 @@ fn set_erc20_metadata(evm_chain_prefix: &str, metadata: Vec<Erc20Metadata>) {
     lock.insert(evm_chain_prefix.to_string(), metadata);
 }
 
-pub fn blockchain_info_thread(
-    gravity_config: GravityConfig,
-    evm_chain_configs: Vec<EvmChainConfig>,
-) {
+pub fn get_evm_chain_configs() -> Vec<EvmChainConfig> {
+    EVM_CHAIN_CONFIGS
+        .read()
+        .unwrap()
+        .clone()
+        .unwrap_or_default()
+}
+
+pub fn set_evm_chain_configs(configs: Vec<EvmChainConfig>) {
+    let mut lock = EVM_CHAIN_CONFIGS.write().unwrap();
+    *lock = Some(configs)
+}
+
+pub fn blockchain_info_thread(gravity_config: GravityConfig) {
     info!("Starting Gravity info watcher");
 
-    let contact = Contact::new(
-        &gravity_config.grpc,
-        gravity_config.request_timeout,
-        &gravity_config.prefix,
-    )
-    .unwrap();
+    for evm_chain_config in get_evm_chain_configs() {
+        let contact = Contact::new(
+            &gravity_config.grpc,
+            gravity_config.request_timeout,
+            &gravity_config.prefix,
+        )
+        .unwrap();
+        thread::spawn(move || loop {
+            let runner = System::new();
+            // loop for list evm chains
 
-    thread::spawn(move || loop {
-        let runner = System::new();
-        // loop for list evm chains
-        for evm_chain_config in &evm_chain_configs {
             runner.block_on(async {
                 let web30 = Web3::new(&evm_chain_config.rpc, contact.get_timeout());
 
@@ -150,6 +162,7 @@ pub fn blockchain_info_thread(
                             return;
                         }
                     };
+
                 let eth_info = query_eth_info(
                     &web30,
                     gravity_contract_address,
@@ -165,11 +178,11 @@ pub fn blockchain_info_thread(
                 let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
                 let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
                     (Ok(a), Ok(b)) => (a, b),
-                    (_, Err(e)) => {
+                    (Err(e), _) => {
                         error!("Failed to get eth info {:?}", e);
                         return;
                     }
-                    (Err(e), _) => {
+                    (_, Err(e)) => {
                         error!("Failed to get erc20 metadata {:?}", e);
                         return;
                     }
@@ -182,8 +195,8 @@ pub fn blockchain_info_thread(
 
             // loop time for processing eth update
             thread::sleep(evm_chain_config.loop_time);
-        }
-    });
+        });
+    }
 }
 
 /// gets information about all tokens that have been bridged
@@ -195,13 +208,17 @@ async fn get_all_erc20_metadata(
 ) -> Result<Vec<Erc20Metadata>, GravityError> {
     let all_tokens_on_gravity = contact.query_total_supply().await?;
     let mut futs = Vec::new();
-    for token in all_tokens_on_gravity {
-        let erc20: EthAddress = if token.denom.starts_with("gravity") {
-            token.denom.trim_start_matches("gravity").parse().unwrap()
+    for token in &all_tokens_on_gravity {
+        let erc20: EthAddress = if token.denom.starts_with(evm_chain_prefix) {
+            token
+                .denom
+                .trim_start_matches(evm_chain_prefix)
+                .parse()
+                .unwrap()
         } else {
             match grpc_client
                 .denom_to_erc20(QueryDenomToErc20Request {
-                    denom: token.denom,
+                    denom: token.denom.clone(),
                     evm_chain_prefix: evm_chain_prefix.to_string(),
                 })
                 .await
@@ -217,6 +234,7 @@ async fn get_all_erc20_metadata(
     for r in results {
         metadata.push(r?)
     }
+    println!("metadata {:?}", metadata);
 
     Ok(metadata)
 }
@@ -437,6 +455,17 @@ async fn query_eth_info(
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
     let starting_block = latest_block.clone() - 7_200u16.into();
+
+    // maximum is 5000 blocks each query
+    let block_to_search: Uint256 = 5_000u64.into();
+
+    let latest_block = if latest_block > starting_block
+        && latest_block.clone() - starting_block.clone() > block_to_search
+    {
+        starting_block.clone() + block_to_search
+    } else {
+        latest_block
+    };
 
     let deposits = web3.check_for_events(
         starting_block.clone(),

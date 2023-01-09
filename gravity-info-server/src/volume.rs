@@ -19,7 +19,7 @@ use std::{
 use web30::client::Web3;
 use web30::types::Log;
 
-use crate::gravity_info::EvmChainConfig;
+use crate::gravity_info::get_evm_chain_configs;
 use crate::gravity_info::GravityConfig;
 use crate::gravity_info::{get_erc20_metadata, get_gravity_info, Erc20Metadata};
 use clarity::Address as EthAddress;
@@ -50,20 +50,20 @@ pub fn get_volume_info(evm_chain_prefix: &str) -> Option<BridgeVolumeNumbers> {
     VOLUME.read().unwrap().get(evm_chain_prefix).cloned()
 }
 
-pub fn bridge_volume_thread(gravity_config: GravityConfig, evm_chain_configs: Vec<EvmChainConfig>) {
+pub fn bridge_volume_thread(gravity_config: GravityConfig) {
     info!("Starting volume computation thread");
 
-    let contact = Contact::new(
-        &gravity_config.grpc,
-        gravity_config.request_timeout,
-        &gravity_config.prefix,
-    )
-    .unwrap();
+    for evm_chain_config in get_evm_chain_configs() {
+        let contact = Contact::new(
+            &gravity_config.grpc,
+            gravity_config.request_timeout,
+            &gravity_config.prefix,
+        )
+        .unwrap();
 
-    thread::spawn(move || loop {
-        let runner = System::new();
+        thread::spawn(move || loop {
+            let runner = System::new();
 
-        for evm_chain_config in &evm_chain_configs {
             runner.block_on(async {
                 let web3 = Web3::new(&evm_chain_config.rpc, contact.get_timeout());
 
@@ -128,8 +128,8 @@ pub fn bridge_volume_thread(gravity_config: GravityConfig, evm_chain_configs: Ve
                 // we haven't gotten any info yet, try again soon
                 thread::sleep(Duration::from_secs(5));
             }
-        }
-    });
+        });
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

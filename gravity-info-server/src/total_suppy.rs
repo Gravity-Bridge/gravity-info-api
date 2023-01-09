@@ -20,6 +20,7 @@ use gravity_proto::cosmos_sdk_proto::cosmos::vesting::v1beta1::BaseVestingAccoun
 use log::{error, info, trace};
 use num256::Uint256;
 use serde::Serialize;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -350,15 +351,9 @@ async fn batch_query_user_information(
     grpc: &str,
 ) -> Result<Vec<UserInfo>, CosmosGrpcError> {
     trace!("Starting batch of {}", input.len());
-    let mut bankrpc = BankQueryClient::connect(grpc.to_string())
-        .await?
-        .accept_gzip();
-    let mut distrpc = DistQueryClient::connect(grpc.to_string())
-        .await?
-        .accept_gzip();
-    let mut stakingrpc = StakingQueryClient::connect(grpc.to_string())
-        .await?
-        .accept_gzip();
+    let mut bankrpc = BankQueryClient::connect(grpc.to_string()).await?;
+    let mut distrpc = DistQueryClient::connect(grpc.to_string()).await?;
+    let mut stakingrpc = StakingQueryClient::connect(grpc.to_string()).await?;
 
     let mut ret = Vec::new();
     for account in input {
@@ -429,9 +424,8 @@ async fn merge_user_information(
     let mut total_delegated: Uint256 = 0u8.into();
     for delegated in delegated.delegation_responses {
         if let Some(b) = delegated.balance {
-            let b: Coin = b.into();
             assert_eq!(b.denom, denom);
-            total_delegated += b.amount
+            total_delegated += Uint256::from_str(b.amount.as_str()).unwrap();
         }
     }
 
@@ -449,19 +443,16 @@ fn sum_vesting(input: BaseVestingAccount, denom: String) -> (Uint256, Uint256, U
     let mut original_amount = 0u8.into();
 
     for coin in input.delegated_free {
-        let coin: Coin = coin.into();
         assert_eq!(coin.denom, denom);
-        total_free += coin.amount;
+        total_free += Uint256::from_str(coin.amount.as_str()).unwrap();
     }
     for coin in input.delegated_vesting {
-        let coin: Coin = coin.into();
         assert_eq!(coin.denom, denom);
-        total_vesting += coin.amount;
+        total_vesting += Uint256::from_str(coin.amount.as_str()).unwrap();
     }
     for coin in input.original_vesting {
-        let coin: Coin = coin.into();
         assert_eq!(coin.denom, denom);
-        original_amount += coin.amount;
+        original_amount += Uint256::from_str(coin.amount.as_str()).unwrap();
     }
 
     (total_free, total_vesting, original_amount)

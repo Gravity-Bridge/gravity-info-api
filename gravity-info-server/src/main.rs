@@ -9,7 +9,9 @@ pub mod volume;
 use std::env;
 use std::time::Duration;
 
-use crate::gravity_info::{get_erc20_metadata, EvmChainConfig, GravityConfig};
+use crate::gravity_info::{
+    get_erc20_metadata, get_evm_chain_configs, set_evm_chain_configs, EvmChainConfig, GravityConfig,
+};
 use crate::total_suppy::get_supply_info;
 use crate::volume::get_volume_info;
 use crate::{gravity_info::get_gravity_info, tls::*};
@@ -52,19 +54,24 @@ impl Default for Params {
 async fn get_total_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v),
+        Some(v) => HttpResponse::Ok().json(v.total_supply),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
+}
+
+#[get("/evm_chain_configs")]
+async fn get_all_evm_chain_configs() -> impl Responder {
+    HttpResponse::Ok().json(get_evm_chain_configs())
 }
 
 #[get("/total_liquid_supply")]
 async fn get_total_liquid_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v),
+        Some(v) => HttpResponse::Ok().json(v.total_liquid_supply),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -74,7 +81,7 @@ async fn get_all_supply_info() -> impl Responder {
     match get_supply_info() {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -86,7 +93,7 @@ async fn get_eth_bridge_info(req: HttpRequest) -> impl Responder {
     match get_eth_info(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -98,7 +105,7 @@ async fn get_gravity_bridge_info(req: HttpRequest) -> impl Responder {
     match get_gravity_info(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -110,7 +117,7 @@ async fn erc20_metadata(req: HttpRequest) -> impl Responder {
     match get_erc20_metadata(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -122,7 +129,7 @@ async fn get_bridge_volume(req: HttpRequest) -> impl Responder {
     match get_volume_info(&params.evm_chain_prefix) {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .body("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 5 minutes"),
     }
 }
 
@@ -156,6 +163,8 @@ async fn main() -> std::io::Result<()> {
         })
         .collect();
 
+    set_evm_chain_configs(evm_chain_configs);
+
     let gravity_config = GravityConfig {
         request_timeout: config["request_timeout"]
             .as_u64()
@@ -184,11 +193,11 @@ async fn main() -> std::io::Result<()> {
 
     // pass cloned structure to thread instead of moving local values
     // starts background thread for gathering into
-    blockchain_info_thread(gravity_config.clone(), evm_chain_configs.clone());
+    blockchain_info_thread(gravity_config.clone());
     // starts a background thread for generating the total supply numbers
     chain_total_supply_thread(gravity_config.clone());
     // starts a background thread for generating volume numbers
-    bridge_volume_thread(gravity_config.clone(), evm_chain_configs.clone());
+    bridge_volume_thread(gravity_config.clone());
 
     openssl_probe::init_ssl_cert_env_vars();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
