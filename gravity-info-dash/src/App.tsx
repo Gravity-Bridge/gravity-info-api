@@ -27,7 +27,7 @@ import {
 // 5 seconds
 const UPDATE_TIME = 5000;
 export const SERVER_URL = (
-  process.env.REACT_APP_BACKEND_PORT || window.location.origin
+  process.env.REACT_APP_BACKEND || window.location.origin
 ).replace(/\/?$/, '/');
 
 const callMethodFromUrl = async (url: string, callback: Function) => {

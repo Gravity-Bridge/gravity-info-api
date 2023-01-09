@@ -3,3 +3,4 @@ scripts/gravity-info-server
 scripts/gravity-info-dash/*
 
 config.yaml
+.firebase

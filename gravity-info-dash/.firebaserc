@@ -1,0 +1,12 @@
+{
+  "projects": {},
+  "targets": {
+    "oraiswap-9f421": {
+      "hosting": {
+        "oraibridge": [
+          "oraibridge"
+        ]
+      }
+    }
+  }
+}
