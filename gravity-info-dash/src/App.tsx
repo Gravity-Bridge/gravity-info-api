@@ -200,7 +200,13 @@ function App() {
             >
               <CardBody>
                 <CardTitle tag="h4">Incoming transactions</CardTitle>
-                <Table style={{ borderSpacing: 10, fontSize: 15 }}>
+                <Table
+                  dark
+                  borderless
+                  size="sm"
+                  responsive
+                  style={{ borderSpacing: 10, fontSize: 15 }}
+                >
                   <thead>
                     <tr>
                       <th>Token</th>
@@ -277,6 +283,7 @@ function App() {
                   Ethereum
                 </CardSubtitle>
                 <Table
+                  dark
                   borderless
                   size="sm"
                   responsive
@@ -356,7 +363,13 @@ function App() {
                             {batch.batch_timeout}
                           </a>
                         </div>
-                        <Table style={{ borderSpacing: 10, fontSize: 15 }}>
+                        <Table
+                          dark
+                          borderless
+                          size="sm"
+                          responsive
+                          style={{ borderSpacing: 10, fontSize: 15 }}
+                        >
                           <thead>
                             <tr>
                               <th>To</th>
