@@ -349,6 +349,7 @@ pub struct InternalGravityParams {
     pub signed_logic_calls_window: u64,
     pub unbond_slashing_valsets_window: u64,
     pub valset_reward: Option<Coin>,
+    pub min_chain_fee_basis_points: u64,
 }
 
 impl From<GravityParams> for InternalGravityParams {
@@ -371,6 +372,7 @@ impl From<GravityParams> for InternalGravityParams {
             signed_logic_calls_window: p.signed_logic_calls_window,
             unbond_slashing_valsets_window: p.unbond_slashing_valsets_window,
             valset_reward: p.valset_reward.map(|c| c.into()),
+            min_chain_fee_basis_points: p.min_chain_fee_basis_points,
         }
     }
 }

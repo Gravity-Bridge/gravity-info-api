@@ -150,7 +150,8 @@ Provides info about the state of the Gravity Bridge module. Including the batch 
     "valset_reward": {
       "amount": "0",
       "denom": ""
-    }
+    },
+    "min_chain_fee_basis_points": 2
   }
  
 }
