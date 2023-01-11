@@ -67,7 +67,7 @@ function App() {
     []
   );
 
-  const [evmChainPrefix, setEvmChainPrefix] = useState<string | null>(null);
+  const [evmChainPrefix, setEvmChainPrefix] = useState<string | undefined>();
 
   const getEvmChainConfigs = async () => {
     await callMethodFromUrl('evm_chain_configs', (json: EvmChainConfig[]) => {
@@ -156,14 +156,23 @@ function App() {
     );
   }
 
+  const getScanBase = (evmChainPrefix?: string): string => {
+    switch (evmChainPrefix) {
+      case 'oraib':
+        return 'https://bscscan.com';
+      default:
+        return 'https://etherscan.io';
+    }
+  };
+
   const evmChainParam = gravityBridgeInfo.params.evm_chain_params.find(
     (p) => p.evm_chain_prefix === evmChainPrefix
   );
-  let bridge_address = evmChainParam?.bridge_ethereum_address;
-  // TODO:// this should be based on net_version
-  let etherscanBase = 'https://etherscan.io/address/';
-  let etherscanBlockBase = 'https://etherscan.io/block/';
-  let etherscanLink = etherscanBase + bridge_address;
+  const bridge_address = evmChainParam?.bridge_ethereum_address;
+  const baseScanUrl = getScanBase(evmChainPrefix);
+  const etherscanBase = `${baseScanUrl}/address/`;
+  const etherscanBlockBase = `${baseScanUrl}/block/`;
+  const etherscanLink = etherscanBase + bridge_address;
 
   return (
     <Container className="App" fluid>
