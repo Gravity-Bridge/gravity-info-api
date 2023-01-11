@@ -468,7 +468,7 @@ function App() {
             <CardBody>
               <CardTitle tag="h4">Gravity Supply Info</CardTitle>
               <div>
-                Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M
+                Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
               </div>
               <div>
@@ -477,29 +477,30 @@ function App() {
               </div>
               <div>
                 Liquid (Not Vesting):{' '}
-                {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M{DENOM}
+                {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M{' '}
+                {DENOM}
               </div>
               <div>
                 Liquid (Not Vesting) and staked:{' '}
-                {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}M
+                {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
               </div>
               <div>
                 Unclaimed staking rewards:{' '}
-                {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}M
+                {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
               </div>
               <div>
-                Unvested: {(supplyInfo.total_vesting / 10 ** 12).toFixed(2)}M
+                Unvested: {(supplyInfo.total_vesting / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
               </div>
               <div>
                 Unvested Staked:{' '}
-                {(supplyInfo.total_vesting_staked / 10 ** 12).toFixed(2)}M
+                {(supplyInfo.total_vesting_staked / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
               </div>
               <div>
-                Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M
+                Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
               </div>
             </CardBody>
