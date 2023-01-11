@@ -11,19 +11,24 @@ export type Attestation = {
 };
 
 export type GravityParams = {
-  bridge_ethereum_address: string;
   average_block_time: number;
-  avearge_ethereum_block_time: number;
   target_batch_timeout: number;
-  bridge_active: boolean;
-  ethereum_blacklist: Array<string>;
-  gravity_id: string;
-  bridge_chain_id: number;
   signed_valsets_window: number;
   signed_batches_window: number;
   signed_logic_calls_window: number;
   unbond_slashing_valsets_window: number;
   valset_reward: Coin | null;
+  evm_chain_params: Array<EvmChainParam>;
+};
+
+export type EvmChainParam = {
+  bridge_ethereum_address: string;
+  avearge_ethereum_block_time: number;
+  bridge_active: boolean;
+  ethereum_blacklist: Array<string>;
+  gravity_id: string;
+  bridge_chain_id: number;
+  evm_chain_prefix: string;
 };
 
 export type Coin = {

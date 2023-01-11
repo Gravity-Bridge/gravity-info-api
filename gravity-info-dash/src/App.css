@@ -17,7 +17,7 @@
   margin-top: 0;
 }
 
-.App-header {
+.App {
   background: linear-gradient(180deg, rgba(47,41,65,1) 0%, rgba(0,0,0,1) 94%, rgba(0,0,0,1) 100%);
   min-height: 100vh;
   display: flex;
@@ -26,10 +26,13 @@
   justify-content: center;
   font-size: calc(5px + 2vmin);
   color: white;
+  padding: 20px;
 }
 .ParametersCard {
   background: #141416;
-  font-size: calc(4px + 2vmin);
+  font-size: 15px;
+  text-align: left;
+  margin-top: 20px;
 }
 a:link {
   color: white;

@@ -1,0 +1,3 @@
+{
+    "typescript.tsdk": "./gravity-info-dash/node_modules/typescript/lib"
+}

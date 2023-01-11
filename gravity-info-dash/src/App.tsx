@@ -8,7 +8,10 @@ import {
   CardSubtitle,
   ButtonGroup,
   Button,
-  Table
+  Table,
+  Container,
+  Col,
+  Row
 } from 'reactstrap';
 import {
   Attestation,
@@ -153,387 +156,359 @@ function App() {
     );
   }
 
-  let bridge_address = gravityBridgeInfo.params.bridge_ethereum_address;
+  const evmChainParam = gravityBridgeInfo.params.evm_chain_params.find(
+    (p) => p.evm_chain_prefix === evmChainPrefix
+  );
+  let bridge_address = evmChainParam?.bridge_ethereum_address;
+  // TODO:// this should be based on net_version
   let etherscanBase = 'https://etherscan.io/address/';
   let etherscanBlockBase = 'https://etherscan.io/block/';
   let etherscanLink = etherscanBase + bridge_address;
 
   return (
-    <div className="App-header" style={{ display: 'flex', flexWrap: 'wrap' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between'
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: 5 }}>
-            <Card
-              className="ParametersCard"
-              style={{ borderRadius: 8, padding: 20 }}
-            >
-              <CardBody>
-                <CardTitle tag="h4">Evm chains</CardTitle>
-                <ButtonGroup size="sm">
-                  {evmChainConfigs.map((evmChainConfig) => (
-                    <Button
-                      outline
-                      color="primary"
-                      title={evmChainConfig.rpc}
-                      active={evmChainConfig.prefix === evmChainPrefix}
-                      key={evmChainConfig.prefix}
-                      onClick={() => {
-                        setEvmChainPrefix(evmChainConfig.prefix);
-                      }}
-                    >
-                      {evmChainConfig.prefix}
-                    </Button>
-                  ))}
-                </ButtonGroup>
-              </CardBody>
-            </Card>
-          </div>
-          <div style={{ padding: 5 }}>
-            <Card
-              className="ParametersCard"
-              style={{ borderRadius: 8, padding: 20 }}
-            >
-              <CardBody>
-                <CardTitle tag="h4">Incoming transactions</CardTitle>
-                <Table
-                  dark
-                  borderless
-                  size="sm"
-                  responsive
-                  style={{ borderSpacing: 10, fontSize: 15 }}
-                >
-                  <thead>
-                    <tr>
-                      <th>Token</th>
-                      <th>Value</th>
-                      <th>Source</th>
-                      <th>Destination</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ethBridgeInfo.deposit_events.map(
-                      (sendToCosmos: DepositWithMetadata) => (
-                        <tr key={sendToCosmos.event_nonce}>
-                          <td>
-                            {
-                              getMetadataFromList(
-                                sendToCosmos.erc20,
-                                erc20Metadata
-                              )?.symbol
-                            }
-                          </td>
-                          <td>
-                            {amountToFraction(
-                              sendToCosmos.erc20,
-                              sendToCosmos.amount,
-                              erc20Metadata
-                            )}
-                          </td>
-                          <td>
-                            <a href={etherscanBase + sendToCosmos.sender}>
-                              {sendToCosmos.sender}
-                            </a>
-                          </td>
-                          <td>
-                            <a
-                              href={cosmosAddressToExplorerLink(
-                                sendToCosmos.destination
-                              )}
-                            >
-                              {sendToCosmos.destination}
-                            </a>
-                          </td>
-                          <td>
-                            {printTxStatus(
-                              sendToCosmos,
-                              gravityBridgeInfo.attestations
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </Table>
-              </CardBody>
-            </Card>
-          </div>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
-          <div style={{ padding: 5 }}>
-            <Card
-              className="ParametersCard"
-              style={{ borderRadius: 8, padding: 20 }}
-            >
-              <CardBody>
-                <CardTitle tag="h4">Transaction Queue</CardTitle>
-                <CardSubtitle style={{ fontSize: 15 }}>
-                  These transactions are not yet in batches, a batch will be
-                  reqested when the fee amount exceeds the cost to execute on
-                  Ethereum
-                </CardSubtitle>
-                <Table
-                  dark
-                  borderless
-                  size="sm"
-                  responsive
-                  style={{ borderSpacing: 10, fontSize: 15 }}
-                >
-                  <thead>
-                    <tr>
-                      <th>Token</th>
-                      <th>Num Transactions</th>
-                      <th>Total Fees</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gravityBridgeInfo.pending_tx.map(
-                      (batchFees: BatchFees, ind) => (
-                        <tr key={ind}>
-                          <td>
-                            {
-                              getMetadataFromList(
-                                batchFees.token,
-                                erc20Metadata
-                              )?.symbol
-                            }
-                          </td>
-                          <td>{batchFees.tx_count}</td>
-                          <td>
-                            {amountToFraction(
-                              batchFees.token,
-                              batchFees.total_fees,
-                              erc20Metadata
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </Table>
-              </CardBody>
-            </Card>
-          </div>
-          <div style={{ padding: 5 }}>
-            <Card
-              className="ParametersCard"
-              style={{ borderRadius: 8, padding: 20 }}
-            >
-              <CardBody>
-                <CardTitle tag="h4">Batch Queue</CardTitle>
-                <CardSubtitle style={{ fontSize: 15 }}>
-                  These transactions are in batches and waiting to be relayed to
-                  Ethereum
-                </CardSubtitle>
-                {getNotExecutedBatches(gravityBridgeInfo, ethBridgeInfo).map(
-                  (batch: TransactionBatch) => (
-                    <Card key={batch.nonce}>
-                      <CardBody>
-                        <CardTitle tag="h5">
-                          {' '}
-                          Batch #{batch.nonce}{' '}
+    <Container className="App" fluid>
+      <Row>
+        <Col>
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 20 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Evm chains</CardTitle>
+              <ButtonGroup size="sm">
+                {evmChainConfigs.map((evmChainConfig) => (
+                  <Button
+                    outline
+                    color="primary"
+                    title={evmChainConfig.rpc}
+                    active={evmChainConfig.prefix === evmChainPrefix}
+                    key={evmChainConfig.prefix}
+                    onClick={() => {
+                      setEvmChainPrefix(evmChainConfig.prefix);
+                    }}
+                  >
+                    {evmChainConfig.prefix}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </CardBody>
+          </Card>
+
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 20 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Incoming transactions</CardTitle>
+              <Table
+                dark
+                borderless
+                size="sm"
+                responsive
+                style={{ borderSpacing: 10, fontSize: 15 }}
+              >
+                <thead>
+                  <tr>
+                    <th>Token</th>
+                    <th>Value</th>
+                    <th>Source</th>
+                    <th>Destination</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ethBridgeInfo.deposit_events.map(
+                    (sendToCosmos: DepositWithMetadata) => (
+                      <tr key={sendToCosmos.event_nonce}>
+                        <td>
                           {
                             getMetadataFromList(
-                              batch.token_contract,
+                              sendToCosmos.erc20,
                               erc20Metadata
                             )?.symbol
                           }
-                        </CardTitle>
-                        <div style={{ fontSize: 15 }}>
-                          Total Fees:{' '}
+                        </td>
+                        <td>
                           {amountToFraction(
-                            batch.token_contract,
-                            batch.total_fee.amount,
+                            sendToCosmos.erc20,
+                            sendToCosmos.amount,
                             erc20Metadata
                           )}
-                        </div>
-                        <div style={{ fontSize: 15 }}>
-                          Timeout:{' '}
-                          <a href={etherscanBlockBase + batch.batch_timeout}>
-                            {batch.batch_timeout}
+                        </td>
+                        <td>
+                          <a href={etherscanBase + sendToCosmos.sender}>
+                            {sendToCosmos.sender}
                           </a>
-                        </div>
-                        <Table
-                          dark
-                          borderless
-                          size="sm"
-                          responsive
-                          style={{ borderSpacing: 10, fontSize: 15 }}
-                        >
-                          <thead>
-                            <tr>
-                              <th>To</th>
-                              <th>From</th>
-                              <th>Amount / Fee</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {batch.transactions.map(
-                              (batchTx: BatchTransaction) => (
-                                <tr key={batchTx.id}>
-                                  <td>
-                                    <a
-                                      href={etherscanBase + batchTx.destination}
-                                    >
-                                      {batchTx.destination}
-                                    </a>
-                                  </td>
-                                  <td>
-                                    <a
-                                      href={cosmosAddressToExplorerLink(
-                                        batchTx.sender
-                                      )}
-                                    >
-                                      {batchTx.sender}
-                                    </a>
-                                  </td>
-                                  <td>
-                                    {amountToFraction(
-                                      batchTx.erc20_token.contract,
-                                      batchTx.erc20_token.amount,
-                                      erc20Metadata
-                                    )}
-                                    /
-                                    {amountToFraction(
-                                      batchTx.erc20_token.contract,
-                                      batchTx.erc20_fee.amount,
-                                      erc20Metadata
-                                    )}
-                                  </td>
-                                </tr>
-                              )
+                        </td>
+                        <td>
+                          <a
+                            href={cosmosAddressToExplorerLink(
+                              sendToCosmos.destination
                             )}
-                          </tbody>
-                        </Table>
-                      </CardBody>
-                    </Card>
-                  )
-                )}
-              </CardBody>
-            </Card>
-          </div>
-          <div style={{ padding: 5 }}>
-            <Card
-              className="ParametersCard"
-              style={{ borderRadius: 8, padding: 25 }}
-            >
-              <CardBody>
-                <CardTitle tag="h4">Current Gravity Parameters</CardTitle>
-                <div style={{ fontSize: 15 }}>
-                  Ethereum Contract Address:{' '}
-                  <a href={etherscanLink}>{bridge_address}</a>
-                </div>
-                <div style={{ fontSize: 15 }}>
-                  Bridge Active:{' '}
-                  {String(gravityBridgeInfo.params.bridge_active)}
-                </div>
-                <div style={{ fontSize: 15 }}>
-                  Target Batch Timeout:{' '}
-                  {gravityBridgeInfo.params.target_batch_timeout /
-                    1000 /
-                    (60 * 60)}{' '}
-                  hours
-                </div>
-              </CardBody>
-            </Card>
-          </div>
+                          >
+                            {sendToCosmos.destination}
+                          </a>
+                        </td>
+                        <td>
+                          {printTxStatus(
+                            sendToCosmos,
+                            gravityBridgeInfo.attestations
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </Table>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col>
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 20 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Transaction Queue</CardTitle>
+              <CardSubtitle>
+                These transactions are not yet in batches, a batch will be
+                reqested when the fee amount exceeds the cost to execute on
+                Ethereum
+              </CardSubtitle>
+              <Table
+                dark
+                borderless
+                size="sm"
+                responsive
+                style={{ borderSpacing: 10, fontSize: 15 }}
+              >
+                <thead>
+                  <tr>
+                    <th>Token</th>
+                    <th>Num Transactions</th>
+                    <th>Total Fees</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gravityBridgeInfo.pending_tx.map(
+                    (batchFees: BatchFees, ind) => (
+                      <tr key={ind}>
+                        <td>
+                          {
+                            getMetadataFromList(batchFees.token, erc20Metadata)
+                              ?.symbol
+                          }
+                        </td>
+                        <td>{batchFees.tx_count}</td>
+                        <td>
+                          {amountToFraction(
+                            batchFees.token,
+                            batchFees.total_fees,
+                            erc20Metadata
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </Table>
+            </CardBody>
+          </Card>
 
-          <div style={{ display: 'flex' }}>
-            <div style={{ padding: 5, flex: 1 }}>
-              <Card
-                className="ParametersCard"
-                style={{ borderRadius: 8, padding: 25 }}
-              >
-                <CardBody>
-                  <CardTitle tag="h4">Gravity Supply Info</CardTitle>
-                  <div style={{ fontSize: 15 }}>
-                    Total Supply:{' '}
-                    {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Community Pool:{' '}
-                    {(supplyInfo.community_pool / 10 ** 12).toFixed(2)}M
-                    Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Liquid (Not Vesting):{' '}
-                    {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M
-                    Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Liquid (Not Vesting) and staked:{' '}
-                    {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}
-                    M Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Unclaimed staking rewards:{' '}
-                    {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}
-                    M Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Unvested: {(supplyInfo.total_vesting / 10 ** 12).toFixed(2)}
-                    M Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Unvested Staked:{' '}
-                    {(supplyInfo.total_vesting_staked / 10 ** 12).toFixed(2)}M
-                    Graviton
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M
-                    Graviton
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            <div style={{ padding: 5, flex: 1 }}>
-              <Card
-                className="ParametersCard"
-                style={{ borderRadius: 8, padding: 25 }}
-              >
-                <CardBody>
-                  <CardTitle tag="h4">Gravity Volume</CardTitle>
-                  <div style={{ fontSize: 15 }}>
-                    Daily Volume $
-                    {(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Daily Inflow $
-                    {(volumeInfo.daily_inflow / 10 ** 6).toFixed(2)}M
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Daily Outflow $
-                    {(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}M
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Weekly Volume $
-                    {(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}M
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Weekly Inflow $
-                    {(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}M
-                  </div>
-                  <div style={{ fontSize: 15 }}>
-                    Weekly Outflow $
-                    {(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}M
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 20 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Batch Queue</CardTitle>
+              <CardSubtitle>
+                These transactions are in batches and waiting to be relayed to
+                Ethereum
+              </CardSubtitle>
+              {getNotExecutedBatches(gravityBridgeInfo, ethBridgeInfo).map(
+                (batch: TransactionBatch) => (
+                  <Card key={batch.nonce}>
+                    <CardBody>
+                      <CardTitle tag="h5">
+                        {' '}
+                        Batch #{batch.nonce}{' '}
+                        {
+                          getMetadataFromList(
+                            batch.token_contract,
+                            erc20Metadata
+                          )?.symbol
+                        }
+                      </CardTitle>
+                      <div>
+                        Total Fees:{' '}
+                        {amountToFraction(
+                          batch.token_contract,
+                          batch.total_fee.amount,
+                          erc20Metadata
+                        )}
+                      </div>
+                      <div>
+                        Timeout:{' '}
+                        <a href={etherscanBlockBase + batch.batch_timeout}>
+                          {batch.batch_timeout}
+                        </a>
+                      </div>
+                      <Table
+                        dark
+                        borderless
+                        size="sm"
+                        responsive
+                        style={{ borderSpacing: 10, fontSize: 15 }}
+                      >
+                        <thead>
+                          <tr>
+                            <th>To</th>
+                            <th>From</th>
+                            <th>Amount / Fee</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batch.transactions.map(
+                            (batchTx: BatchTransaction) => (
+                              <tr key={batchTx.id}>
+                                <td>
+                                  <a href={etherscanBase + batchTx.destination}>
+                                    {batchTx.destination}
+                                  </a>
+                                </td>
+                                <td>
+                                  <a
+                                    href={cosmosAddressToExplorerLink(
+                                      batchTx.sender
+                                    )}
+                                  >
+                                    {batchTx.sender}
+                                  </a>
+                                </td>
+                                <td>
+                                  {amountToFraction(
+                                    batchTx.erc20_token.contract,
+                                    batchTx.erc20_token.amount,
+                                    erc20Metadata
+                                  )}
+                                  /
+                                  {amountToFraction(
+                                    batchTx.erc20_token.contract,
+                                    batchTx.erc20_fee.amount,
+                                    erc20Metadata
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </Table>
+                    </CardBody>
+                  </Card>
+                )
+              )}
+            </CardBody>
+          </Card>
+
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 25 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Current Gravity Parameters</CardTitle>
+              <div>
+                Ethereum Contract Address:{' '}
+                <a href={etherscanLink}>{bridge_address}</a>
+              </div>
+              <div>Bridge Active: {String(evmChainParam?.bridge_active)}</div>
+              <div>
+                Target Batch Timeout:{' '}
+                {gravityBridgeInfo.params.target_batch_timeout /
+                  1000 /
+                  (60 * 60)}{' '}
+                hours
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 25 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Gravity Supply Info</CardTitle>
+              <div>
+                Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+              <div>
+                Community Pool:{' '}
+                {(supplyInfo.community_pool / 10 ** 12).toFixed(2)}M Graviton
+              </div>
+              <div>
+                Liquid (Not Vesting):{' '}
+                {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+              <div>
+                Liquid (Not Vesting) and staked:{' '}
+                {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+              <div>
+                Unclaimed staking rewards:{' '}
+                {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+              <div>
+                Unvested: {(supplyInfo.total_vesting / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+              <div>
+                Unvested Staked:{' '}
+                {(supplyInfo.total_vesting_staked / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+              <div>
+                Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M
+                Graviton
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 25 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Gravity Volume</CardTitle>
+              <div>
+                Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M
+              </div>
+              <div>
+                Daily Inflow ${(volumeInfo.daily_inflow / 10 ** 6).toFixed(2)}M
+              </div>
+              <div>
+                Daily Outflow ${(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}
+                M
+              </div>
+              <div>
+                Weekly Volume ${(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}
+                M
+              </div>
+              <div>
+                Weekly Inflow ${(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}
+                M
+              </div>
+              <div>
+                Weekly Outflow $
+                {(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}M
+              </div>
+            </CardBody>
+          </Card>
+        </Col>
+      </Row>
+    </Container>
   );
 }
 
