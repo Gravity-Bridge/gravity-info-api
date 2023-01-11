@@ -52,16 +52,26 @@ pub struct ChainTotalSupplyNumbers {
 }
 
 lazy_static! {
-    static ref TOTAL_SUPPLY: Arc<RwLock<Option<ChainTotalSupplyNumbers>>> =
-        Arc::new(RwLock::new(None));
+    static ref TOTAL_SUPPLY: Arc<RwLock<ChainTotalSupplyNumbers>> =
+        Arc::new(RwLock::new(ChainTotalSupplyNumbers {
+            total_supply: 0u128.into(),
+            community_pool: 0u128.into(),
+            total_liquid_supply: 0u128.into(),
+            total_liquid_balances: 0u128.into(),
+            total_unclaimed_rewards: 0u128.into(),
+            total_nonvesting_staked: 0u128.into(),
+            total_vesting: 0u128.into(),
+            total_vesting_staked: 0u128.into(),
+            total_vested: 0u128.into(),
+        }));
 }
 
 fn set_supply_info(input: ChainTotalSupplyNumbers) {
     let mut r = TOTAL_SUPPLY.write().unwrap();
-    *r = Some(input);
+    *r = input;
 }
 
-pub fn get_supply_info() -> Option<ChainTotalSupplyNumbers> {
+pub fn get_supply_info() -> ChainTotalSupplyNumbers {
     TOTAL_SUPPLY.read().unwrap().clone()
 }
 

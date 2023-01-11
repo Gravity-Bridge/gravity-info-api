@@ -53,31 +53,19 @@ impl Default for Params {
 #[get("/total_supply")]
 async fn get_total_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
-    match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v.total_supply),
-        None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
-    }
+    HttpResponse::Ok().json(get_supply_info().total_supply)
 }
 
 #[get("/total_liquid_supply")]
 async fn get_total_liquid_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
-    match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v.total_liquid_supply),
-        None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
-    }
+    HttpResponse::Ok().json(get_supply_info().total_liquid_supply)
 }
 
 #[get("/supply_info")]
 async fn get_all_supply_info() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
-    match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v),
-        None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
-    }
+    HttpResponse::Ok().json(get_supply_info())
 }
 
 #[get("/eth_bridge_info")]
