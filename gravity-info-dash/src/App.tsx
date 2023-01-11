@@ -148,11 +148,11 @@ function App() {
     typeof volumeInfo === 'string'
   ) {
     return (
-      <div className="App-header" style={{ display: 'flex', flexWrap: 'wrap' }}>
+      <Container className="App" fluid>
         <Spinner color="danger" type="grow">
           Loading...
         </Spinner>
-      </div>
+      </Container>
     );
   }
 
@@ -260,6 +260,36 @@ function App() {
                   )}
                 </tbody>
               </Table>
+            </CardBody>
+          </Card>
+          <Card
+            className="ParametersCard"
+            style={{ borderRadius: 8, padding: 25 }}
+          >
+            <CardBody>
+              <CardTitle tag="h4">Gravity Volume</CardTitle>
+              <div>
+                Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M
+              </div>
+              <div>
+                Daily Inflow ${(volumeInfo.daily_inflow / 10 ** 6).toFixed(2)}M
+              </div>
+              <div>
+                Daily Outflow ${(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}
+                M
+              </div>
+              <div>
+                Weekly Volume ${(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}
+                M
+              </div>
+              <div>
+                Weekly Inflow ${(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}
+                M
+              </div>
+              <div>
+                Weekly Outflow $
+                {(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}M
+              </div>
             </CardBody>
           </Card>
         </Col>
@@ -472,37 +502,6 @@ function App() {
               <div>
                 Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M
                 Graviton
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card
-            className="ParametersCard"
-            style={{ borderRadius: 8, padding: 25 }}
-          >
-            <CardBody>
-              <CardTitle tag="h4">Gravity Volume</CardTitle>
-              <div>
-                Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M
-              </div>
-              <div>
-                Daily Inflow ${(volumeInfo.daily_inflow / 10 ** 6).toFixed(2)}M
-              </div>
-              <div>
-                Daily Outflow ${(volumeInfo.daily_outflow / 10 ** 6).toFixed(2)}
-                M
-              </div>
-              <div>
-                Weekly Volume ${(volumeInfo.weekly_volume / 10 ** 6).toFixed(2)}
-                M
-              </div>
-              <div>
-                Weekly Inflow ${(volumeInfo.weekly_inflow / 10 ** 6).toFixed(2)}
-                M
-              </div>
-              <div>
-                Weekly Outflow $
-                {(volumeInfo.weekly_outflow / 10 ** 6).toFixed(2)}M
               </div>
             </CardBody>
           </Card>
