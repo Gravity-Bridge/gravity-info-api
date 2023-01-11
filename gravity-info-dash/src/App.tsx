@@ -53,7 +53,6 @@ const callMethodFromUrl = async (url: string, callback: Function) => {
 };
 
 function App() {
-  document.title = 'Gravity Bridge Info';
   const [gravityBridgeInfo, setGravityBridgeInfo] =
     useState<GravityInfo | null>(null);
   const [ethBridgeInfo, setEthBridgeInfo] = useState<EthInfo | null>(null);
