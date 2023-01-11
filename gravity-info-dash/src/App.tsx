@@ -29,6 +29,7 @@ import {
 
 // 5 seconds
 const UPDATE_TIME = 5000;
+const DENOM = 'uoraib';
 export const SERVER_URL = (
   process.env.REACT_APP_BACKEND || window.location.origin
 ).replace(/\/?$/, '/');
@@ -469,39 +470,38 @@ function App() {
               <CardTitle tag="h4">Gravity Supply Info</CardTitle>
               <div>
                 Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M
-                Graviton
+                {DENOM}
               </div>
               <div>
                 Community Pool:{' '}
-                {(supplyInfo.community_pool / 10 ** 12).toFixed(2)}M Graviton
+                {(supplyInfo.community_pool / 10 ** 12).toFixed(2)}M {DENOM}
               </div>
               <div>
                 Liquid (Not Vesting):{' '}
-                {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M
-                Graviton
+                {(supplyInfo.total_liquid_supply / 10 ** 12).toFixed(2)}M{DENOM}
               </div>
               <div>
                 Liquid (Not Vesting) and staked:{' '}
                 {(supplyInfo.total_nonvesting_staked / 10 ** 12).toFixed(2)}M
-                Graviton
+                {DENOM}
               </div>
               <div>
                 Unclaimed staking rewards:{' '}
                 {(supplyInfo.total_unclaimed_rewards / 10 ** 12).toFixed(2)}M
-                Graviton
+                {DENOM}
               </div>
               <div>
                 Unvested: {(supplyInfo.total_vesting / 10 ** 12).toFixed(2)}M
-                Graviton
+                {DENOM}
               </div>
               <div>
                 Unvested Staked:{' '}
                 {(supplyInfo.total_vesting_staked / 10 ** 12).toFixed(2)}M
-                Graviton
+                {DENOM}
               </div>
               <div>
                 Vested: {(supplyInfo.total_vested / 10 ** 12).toFixed(2)}M
-                Graviton
+                {DENOM}
               </div>
             </CardBody>
           </Card>
