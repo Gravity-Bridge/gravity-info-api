@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import {
   Spinner,
@@ -9,7 +10,6 @@ import {
   Table,
 } from "reactstrap";
 import { Attestation, BatchFees, BatchTransaction, ChainTotalSupplyNumbers, Erc20Metadata, EthInfo, GravityInfo, DepositWithMetadata, TransactionBatch, VolumeInfo } from './types';
-
 // 5 seconds
 const UPDATE_TIME = 5000;
 
@@ -126,7 +126,7 @@ function App() {
     return (
       <div className="App-header" style={{ display: "flex", flexWrap: "wrap" }}>
         <Spinner
-          color="danger"
+          color="primary"
           type="grow"
         >
           Loading...
@@ -145,14 +145,14 @@ function App() {
       <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 20 }}>
           <CardBody>
-            <CardTitle tag="h4">
+            <CardTitle tag="h1">
               Transaction Queue
             </CardTitle>
             <CardSubtitle
               style={{ fontSize: 15 }}
             >These transactions are not yet in batches, a batch will be reqested when the fee amount exceeds the cost to execute on Ethereum</CardSubtitle>
             <Table
-              style={{ borderSpacing: 10, fontSize: 15 }}
+              style={{ borderSpacing: 10, fontSize: 15, color: 'white' }}
             >
               <thead>
                 <tr>
@@ -191,20 +191,20 @@ function App() {
       <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 20 }}>
           <CardBody>
-            <CardTitle tag="h4">
+            <CardTitle tag="h1">
               Batch Queue
             </CardTitle>
             <CardSubtitle
               style={{ fontSize: 15 }}
             >These transactions are in batches and waiting to be relayed to Ethereum</CardSubtitle>
             {
-              getNotExecutedBatches(gravityBridgeInfo, ethBridgeInfo).map((batch: TransactionBatch) => (<Card>
-                <CardBody>
+              getNotExecutedBatches(gravityBridgeInfo, ethBridgeInfo).map((batch: TransactionBatch) => (<Card style={{ border: 'none' }}>
+                <CardBody className="ParametersCard">
                   <CardTitle tag="h5"> Batch #{batch.nonce}  {getMetadataFromList(batch.token_contract, erc20Metadata)?.symbol}</CardTitle>
                   <div style={{ fontSize: 15 }}>Total Fees: {amountToFraction(batch.token_contract, batch.total_fee.amount, erc20Metadata)}</div>
                   <div style={{ fontSize: 15 }}>Timeout: <a href={etherscanBlockBase + batch.batch_timeout}>{batch.batch_timeout}</a></div>
                   <Table
-                    style={{ borderSpacing: 10, fontSize: 15 }}
+                    style={{ borderSpacing: 10, fontSize: 15, color: 'white' }}
                   >
                     <thead>
                       <tr>
@@ -246,11 +246,11 @@ function App() {
       <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 20 }}>
           <CardBody>
-            <CardTitle tag="h4">
+            <CardTitle tag="h1">
               Incoming transactions
             </CardTitle>
             <Table
-              style={{ borderSpacing: 10, fontSize: 15 }}
+              style={{ borderSpacing: 10, fontSize: 15, color: 'white' }}
             >
               <thead>
                 <tr>
@@ -301,7 +301,7 @@ function App() {
       <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 25 }}>
           <CardBody>
-            <CardTitle tag="h4">
+            <CardTitle tag="h1">
               Gravity Volume
             </CardTitle>
             <div style={{ fontSize: 15 }}>Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M</div>
@@ -316,7 +316,7 @@ function App() {
       <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 25 }}>
           <CardBody>
-            <CardTitle tag="h4">
+            <CardTitle tag="h1">
               Gravity Supply Info
             </CardTitle>
             <div style={{ fontSize: 15 }}>Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M Graviton</div>
@@ -333,7 +333,7 @@ function App() {
       <div style={{ padding: 5 }}>
         <Card className="ParametersCard" style={{ borderRadius: 8, padding: 25 }}>
           <CardBody>
-            <CardTitle tag="h4">
+            <CardTitle tag="h1">
               Current Gravity Parameters
             </CardTitle>
             <div style={{ fontSize: 15 }}>Ethereum Contract Address: <a href={etherscanLink}>{bridge_address}</a></div>
@@ -342,7 +342,6 @@ function App() {
           </CardBody>
         </Card>
       </div>
-
     </div >
   );
 }
@@ -425,11 +424,12 @@ function cosmosAddressToExplorerLink(input: string) {
 
 // takes a send to Cosmos event and determines its status
 function printTxStatus(event: DepositWithMetadata, events: Array<Attestation>) {
-  if(event.confirmed) {
-    return "Complete" 
+  if (event.confirmed) {
+    return "Complete"
   } else {
     return "Pending " + event.seconds_until_confirmed + "s"
   }
 }
+
 
 export default App;
