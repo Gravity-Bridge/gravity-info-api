@@ -381,16 +381,21 @@ pub struct DepositWithMetadata {
 }
 
 impl DepositWithMetadata {
+    /// Converts an event
     pub fn convert(
         input: SendToCosmosEvent,
         current_eth_height: Uint256,
-        finality_delay: u64,
-        eth_block_time: u64,
+        current_final_height: Uint256,
+        finality_delay: Uint256,
+        eth_block_time: Uint256,
     ) -> Option<Self> {
-        let finished =
-            current_eth_height.clone() - input.block_height.clone() > finality_delay.into();
+        let finished = if input.block_height < current_final_height {
+            true
+        } else {
+            current_eth_height.clone() - input.block_height.clone() > finality_delay
+        };
         // height at which Gravity will see this tx
-        let confirm_height = input.block_height.clone() + finality_delay.into();
+        let confirm_height = input.block_height.clone() + eth_block_time.clone();
         let blocks_until_confirmed: Uint256 = if finished {
             0u8.into()
         } else {
@@ -407,7 +412,7 @@ impl DepositWithMetadata {
                 block_height: input.block_height,
                 confirmed: finished,
                 blocks_until_confirmed: blocks_until_confirmed.clone(),
-                seconds_until_confirmed: blocks_until_confirmed * eth_block_time.into(),
+                seconds_until_confirmed: blocks_until_confirmed * eth_block_time,
             })
         } else {
             None
@@ -437,6 +442,7 @@ pub struct InternalGravityParams {
     pub signed_logic_calls_window: u64,
     pub unbond_slashing_valsets_window: u64,
     pub valset_reward: Option<Coin>,
+    pub min_chain_fee_basis_points: u64,
     pub evm_chain_params: Vec<InternalEvmChainGravityParams>,
 }
 
@@ -467,6 +473,7 @@ impl From<GravityParams> for InternalGravityParams {
             signed_logic_calls_window: p.signed_logic_calls_window,
             unbond_slashing_valsets_window: p.unbond_slashing_valsets_window,
             valset_reward: p.valset_reward.map(|c| c.into()),
+            min_chain_fee_basis_points: p.min_chain_fee_basis_points,
         }
     }
 }
@@ -478,6 +485,7 @@ async fn query_eth_info(
     eth_block_time: u64,
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
+    let latest_finalized_block = web3.eth_get_finalized_block().await?.number;
     let starting_block = latest_block.clone() - 7_200u16.into();
 
     // maximum is 5000 blocks each query
@@ -551,8 +559,13 @@ async fn query_eth_info(
 
     let mut deposit_events = Vec::new();
     for d in deposits {
-        let d =
-            DepositWithMetadata::convert(d, latest_block.clone(), finality_delay, eth_block_time);
+        let d = DepositWithMetadata::convert(
+            d,
+            latest_block.clone(),
+            latest_finalized_block.clone(),
+            finality_delay.into(),
+            eth_block_time.into(),
+        );
         if let Some(d) = d {
             deposit_events.push(d);
         }

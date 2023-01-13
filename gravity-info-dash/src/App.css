@@ -28,23 +28,31 @@
   color: white;
   padding: 20px;
 }
+
 .ParametersCard {
   background: #141416;
   font-size: 15px;
   text-align: left;
   margin-top: 20px;
 }
+
 a:link {
   color: white;
   background-color: transparent;
   text-decoration: underline;
 }
 
+td {
+  border: none;
+}
+
+
 
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

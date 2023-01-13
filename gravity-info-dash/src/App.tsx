@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import {
   Spinner,
@@ -149,7 +150,7 @@ function App() {
   ) {
     return (
       <Container className="App" fluid>
-        <Spinner color="danger" type="grow">
+        <Spinner color="primary" type="grow">
           Loading...
         </Spinner>
       </Container>
@@ -183,7 +184,7 @@ function App() {
             style={{ borderRadius: 8, padding: 20 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Evm chains</CardTitle>
+              <CardTitle tag="h1">Evm chains</CardTitle>
               <ButtonGroup size="sm">
                 {evmChainConfigs.map((evmChainConfig) => (
                   <Button
@@ -208,7 +209,7 @@ function App() {
             style={{ borderRadius: 8, padding: 20 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Incoming transactions</CardTitle>
+              <CardTitle tag="h1">Incoming transactions</CardTitle>
               <Table
                 dark
                 borderless
@@ -276,7 +277,7 @@ function App() {
             style={{ borderRadius: 8, padding: 25 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Gravity Volume</CardTitle>
+              <CardTitle tag="h1">Gravity Volume</CardTitle>
               <div>
                 Daily Volume ${(volumeInfo.daily_volume / 10 ** 6).toFixed(2)}M
               </div>
@@ -308,7 +309,7 @@ function App() {
             style={{ borderRadius: 8, padding: 20 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Transaction Queue</CardTitle>
+              <CardTitle tag="h1">Transaction Queue</CardTitle>
               <CardSubtitle>
                 These transactions are not yet in batches, a batch will be
                 reqested when the fee amount exceeds the cost to execute on
@@ -359,7 +360,7 @@ function App() {
             style={{ borderRadius: 8, padding: 20 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Batch Queue</CardTitle>
+              <CardTitle tag="h1">Batch Queue</CardTitle>
               <CardSubtitle>
                 These transactions are in batches and waiting to be relayed to
                 Ethereum
@@ -454,7 +455,7 @@ function App() {
             style={{ borderRadius: 8, padding: 25 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Current Gravity Parameters</CardTitle>
+              <CardTitle tag="h1">Current Gravity Parameters</CardTitle>
               <div>
                 Ethereum Contract Address:{' '}
                 <a href={etherscanLink}>{bridge_address}</a>
@@ -475,7 +476,7 @@ function App() {
             style={{ borderRadius: 8, padding: 25 }}
           >
             <CardBody>
-              <CardTitle tag="h4">Gravity Supply Info</CardTitle>
+              <CardTitle tag="h1">Gravity Supply Info</CardTitle>
               <div>
                 Total Supply: {(supplyInfo.total_supply / 10 ** 12).toFixed(2)}M{' '}
                 {DENOM}
