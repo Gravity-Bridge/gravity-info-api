@@ -313,7 +313,7 @@ async fn query_gravity_info(
     grpc_client: &mut GravityQueryClient<Channel>,
     evm_chain_prefix: &str,
 ) -> Result<GravityInfo, GravityError> {
-    // can't be easily parallelized becuase of the grpc client :(
+    // can't be easily parallelized because of the grpc client :(
     let pending_tx = get_pending_batch_fees(grpc_client, evm_chain_prefix)
         .await?
         .batch_fees;
