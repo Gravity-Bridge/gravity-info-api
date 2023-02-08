@@ -485,7 +485,8 @@ async fn query_eth_info(
     eth_block_time: u64,
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
-    let latest_finalized_block = web3.eth_get_finalized_block().await?.number;
+    // delay 3 blocks
+    let latest_finalized_block = latest_block.clone() - 3u8.into();
     let starting_block = latest_block.clone() - 7_200u16.into();
 
     // maximum is 5000 blocks each query
