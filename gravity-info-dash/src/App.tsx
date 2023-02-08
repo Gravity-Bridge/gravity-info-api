@@ -158,6 +158,20 @@ function App() {
     <Container className="App" fluid>
       <Row>
         <Col>
+          <BatchQueue
+            etherscanBase={etherscanBase}
+            gravityBridgeInfo={gravityBridgeInfo}
+            erc20Metadata={erc20Metadata}
+            ethBridgeInfo={ethBridgeInfo}
+          />
+
+          <IncommingTransactions
+            ethBridgeInfo={ethBridgeInfo}
+            etherscanBase={etherscanBase}
+            erc20Metadata={erc20Metadata}
+          />
+        </Col>
+        <Col>
           <EvmChains
             configs={evmChainConfigs}
             evmChainPrefix={evmChainPrefix}
@@ -166,25 +180,9 @@ function App() {
             }}
           />
 
-          <IncommingTransactions
-            ethBridgeInfo={ethBridgeInfo}
-            etherscanBase={etherscanBase}
-            erc20Metadata={erc20Metadata}
-          />
-
-          <GravityVolume volumeInfo={volumeInfo} />
-        </Col>
-        <Col>
           <TransactionQueue
             gravityBridgeInfo={gravityBridgeInfo}
             erc20Metadata={erc20Metadata}
-          />
-
-          <BatchQueue
-            etherscanBase={etherscanBase}
-            gravityBridgeInfo={gravityBridgeInfo}
-            erc20Metadata={erc20Metadata}
-            ethBridgeInfo={ethBridgeInfo}
           />
 
           <CurrentParameters
@@ -194,6 +192,8 @@ function App() {
           />
 
           <SupplyInfo supplyInfo={supplyInfo} />
+
+          <GravityVolume volumeInfo={volumeInfo} />
         </Col>
       </Row>
     </Container>
