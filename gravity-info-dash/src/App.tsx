@@ -159,6 +159,7 @@ function App() {
       <Row>
         <Col>
           <BatchQueue
+            evmChainPrefix={evmChainPrefix}
             etherscanBase={etherscanBase}
             gravityBridgeInfo={gravityBridgeInfo}
             erc20Metadata={erc20Metadata}

@@ -18,10 +18,10 @@ interface Props {
   erc20Metadata: Array<Erc20Metadata>;
   ethBridgeInfo: EthInfo;
   etherscanBase: string;
-  evmChainPrefix: string;
+  evmChainPrefix?: string;
 }
 
-const prefixToName = (prefix: string) => {
+const prefixToName = (prefix?: string) => {
   switch (prefix) {
     case 'oraib':
       return 'Binance Smart Chain';
