@@ -18,7 +18,7 @@ export const CurrentParameters: React.FC<Props> = ({
       <CardBody>
         <CardTitle tag="h1">Current Gravity Parameters</CardTitle>
         <div>
-          Ethereum Contract Address:{' '}
+          Evm Contract Address:{' '}
           {evmChainParam?.bridge_ethereum_address && (
             <a
               href={`${etherscanBase}/address/${evmChainParam.bridge_ethereum_address}`}
