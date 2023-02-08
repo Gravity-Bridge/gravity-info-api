@@ -44,6 +44,15 @@ const callMethodFromUrl = async (url: string, callback: Function) => {
   }
 };
 
+const prefixToName = (prefix?: string) => {
+  switch (prefix) {
+    case 'eth-mainnet':
+      return 'Ethereum Mainnet';
+    default:
+      return 'Binance Smart Chain';
+  }
+};
+
 function App() {
   const [gravityBridgeInfo, setGravityBridgeInfo] =
     useState<GravityInfo | null>(null);
@@ -153,13 +162,14 @@ function App() {
   );
 
   const etherscanBase = getEtherScanBase(evmChainPrefix);
+  const evmChainName = prefixToName(evmChainPrefix);
 
   return (
     <Container className="App" fluid>
       <Row>
         <Col>
           <BatchQueue
-            evmChainPrefix={evmChainPrefix}
+            evmChainName={evmChainName}
             etherscanBase={etherscanBase}
             gravityBridgeInfo={gravityBridgeInfo}
             erc20Metadata={erc20Metadata}
@@ -182,6 +192,7 @@ function App() {
           />
 
           <TransactionQueue
+            evmChainName={evmChainName}
             gravityBridgeInfo={gravityBridgeInfo}
             erc20Metadata={erc20Metadata}
           />

@@ -18,32 +18,23 @@ interface Props {
   erc20Metadata: Array<Erc20Metadata>;
   ethBridgeInfo: EthInfo;
   etherscanBase: string;
-  evmChainPrefix?: string;
+  evmChainName: string;
 }
-
-const prefixToName = (prefix?: string) => {
-  switch (prefix) {
-    case 'oraib':
-      return 'Binance Smart Chain';
-    default:
-      return 'Ethereum Mainnet';
-  }
-};
 
 export const BatchQueue: React.FC<Props> = ({
   gravityBridgeInfo,
   erc20Metadata,
   ethBridgeInfo,
   etherscanBase,
-  evmChainPrefix
+  evmChainName
 }) => {
   return (
     <Card className="ParametersCard" style={{ borderRadius: 8, padding: 20 }}>
       <CardBody>
         <CardTitle tag="h1">Batch Queue</CardTitle>
         <CardSubtitle>
-          These transactions are in batches and waiting to be relayed to
-          <strong> {prefixToName(evmChainPrefix)}</strong>
+          These transactions are in batches and waiting to be relayed to{' '}
+          <strong>{evmChainName}</strong>
         </CardSubtitle>
         {getNotExecutedBatches(gravityBridgeInfo, ethBridgeInfo).map(
           (batch: TransactionBatch) => (
