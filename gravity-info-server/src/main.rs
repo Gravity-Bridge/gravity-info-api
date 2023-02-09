@@ -21,7 +21,7 @@ use env_logger::Env;
 use gravity_info::{blockchain_info_thread, get_eth_info};
 use log::info;
 use rustls::ServerConfig;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use total_suppy::chain_total_supply_thread;
 use volume::bridge_volume_thread;
 
@@ -115,10 +115,20 @@ async fn get_bridge_volume(req: HttpRequest) -> impl Responder {
             .json("Info not yet generated, please query in 5 minutes"),
     }
 }
+#[derive(Debug, Default, Clone, Serialize)]
+struct EvmChainConfigResponse {
+    prefix: String,
+}
 
 #[get("/evm_chain_configs")]
 async fn get_all_evm_chain_configs() -> impl Responder {
-    HttpResponse::Ok().json(get_evm_chain_configs())
+    let evm_chains: Vec<EvmChainConfigResponse> = get_evm_chain_configs()
+        .iter()
+        .map(|evm_chain| EvmChainConfigResponse {
+            prefix: evm_chain.prefix.to_string(),
+        })
+        .collect();
+    HttpResponse::Ok().json(evm_chains)
 }
 
 #[actix_web::main]
