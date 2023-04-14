@@ -78,11 +78,11 @@ pub fn chain_total_supply_thread() {
                 Ok(v) => {
                     info!("Successfully updated supply info!");
                     set_supply_info(v);
+                    thread::sleep(LOOP_TIME);
                 }
                 Err(e) => error!("Failed to update supply info with {:?}", e),
             }
         });
-        thread::sleep(LOOP_TIME);
     });
 }
 
