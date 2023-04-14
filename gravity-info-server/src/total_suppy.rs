@@ -187,13 +187,14 @@ async fn compute_liquid_supply(
                             total_amount_vested += amount.amount;
                         }
                     }
+                    assert!(total_amount_vested <= original_vesting_amount);
                     let total_amount_still_vesting =
-                        total_amount_vested.clone() - original_vesting_amount;
+                        original_vesting_amount - total_amount_vested.clone();
 
                     total_vested += total_amount_vested;
                     total_vesting += total_amount_still_vesting.clone();
 
-                    assert!(total_amount_still_vesting > total_delegated_vesting);
+                    assert!(total_amount_still_vesting >= total_delegated_vesting);
                     let vesting_in_balance = total_amount_still_vesting - total_delegated_vesting;
                     // unvested tokens show up in the balance
                     // but unvested delegated tokens do not, in the case where a user
@@ -205,6 +206,7 @@ async fn compute_liquid_supply(
                 // from current balance, if the number is positive (staking could make it negative)
                 // we add to our total
                 else {
+                    assert!(original_vesting_amount >= total_delegated_vesting);
                     let vesting_in_balance =
                         original_vesting_amount.clone() - total_delegated_vesting;
                     assert!(total_vested > original_vesting_amount);
@@ -220,6 +222,7 @@ async fn compute_liquid_supply(
                 let vesting_start_time =
                     UNIX_EPOCH + Duration::from_secs(account_info.start_time as u64);
                 let base = account_info.base_vesting_account.unwrap();
+                assert!(base.end_time > account_info.start_time);
                 let vesting_duration =
                     Duration::from_secs(base.end_time as u64 - account_info.start_time as u64);
                 let (total_delegated_free, total_delegated_vesting, original_vesting_amount) =
@@ -263,6 +266,7 @@ async fn compute_liquid_supply(
                     // unvested tokens show up in the balance
                     // but unvested delegated tokens do not, in the case where a user
                     // has some vesting, some delegation, some balance, and some unclaimed rewards
+                    assert!(user.balance >= vesting_in_balance);
                     total_liquid_supply += user.balance - vesting_in_balance;
                 }
                 // vesting has not started yet, in this case we subtract total vesting amount
