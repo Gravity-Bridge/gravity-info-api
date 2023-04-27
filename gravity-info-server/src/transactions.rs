@@ -2,11 +2,10 @@ use cosmos_sdk_proto_althea::{
     cosmos::tx::v1beta1::{TxBody, TxRaw},
 };
 
-use log::{info, error};
-use env_logger;
+use log::info;
 use rocksdb::{Options, DB};
 use gravity_proto::gravity::MsgSendToEth;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::web;
 use serde::{Serialize, Deserialize};
 
 use deep_space::{
@@ -63,31 +62,35 @@ impl From<&MsgSendToEth> for CustomMsgSendToEth {
             eth_dest: msg.eth_dest.clone(),
             amount: msg
                 .amount
-                .iter()
+                .as_ref()
                 .map(|coin| CustomCoin {
                     denom: coin.denom.clone(),
                     amount: coin.amount.clone(),
                 })
+                .into_iter()
                 .collect(),
-                bridge_fee: msg
-                .amount
-                .iter()
+            bridge_fee: msg
+                .bridge_fee
+                .as_ref()
                 .map(|coin| CustomCoin {
                     denom: coin.denom.clone(),
                     amount: coin.amount.clone(),
                 })
+                .into_iter()
                 .collect(),
-                chain_fee: msg
-                .amount
-                .iter()
+            chain_fee: msg
+                .chain_fee
+                .as_ref()
                 .map(|coin| CustomCoin {
                     denom: coin.denom.clone(),
                     amount: coin.amount.clone(),
                 })
+                .into_iter()
                 .collect(),
         }
     }
 }
+
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// finds earliest available block using binary search, keep in mind this cosmos
@@ -108,6 +111,7 @@ async fn get_earliest_block(contact: &Contact, mut start: u64, mut end: u64) -> 
     start + 1
 }
 
+// currently only loads MsgSendToEth messages then sends the data from the transactions to the DB
 async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     let blocks = contact.get_block_range(start, end).await.unwrap();
 
@@ -125,7 +129,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                 value: tx,
             };
             let tx_raw: TxRaw = decode_any(raw_tx_any).unwrap();
-            let tx_hash = hex::encode(sha256::digest_bytes(&tx_raw.body_bytes));
+            let tx_hash = sha256::digest_bytes(&tx_raw.body_bytes).to_uppercase();
             let body_any = prost_types::Any {
                 type_url: "/cosmos.tx.v1beta1.TxBody".to_string(),
                 value: tx_raw.body_bytes,
@@ -133,6 +137,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
             let tx_body: TxBody = decode_any(body_any).unwrap();
 
             let mut has_msg_send_to_eth = false;
+            // tx sorting
             for message in tx_body.messages {
                 if message.type_url == "/gravity.v1.MsgSendToEth" {
                     has_msg_send_to_eth = true;
@@ -161,12 +166,11 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     c.blocks += blocks_len;
     c.transactions += tx_counter;
     c.msgs += msg_counter;
-    println!("Finished processing blocks. Total blocks: {}, Total transactions: {}, Total MsgSendToEth messages: {}", c.blocks, c.transactions, c.msgs);
 }
 
 
 pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Options) -> tokio::task::JoinHandle<()> {
-    info!("Starting downloading & parsing transactions");
+    info!("Started downloading & parsing transactions");
     tokio::spawn(async move {
     let contact = Contact::new("http://gravity-grpc.polkachu.com:14290", TIMEOUT, "gravity")
         .expect("invalid url");
@@ -230,7 +234,7 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
             buf.push(fut);
         } else {
             let _ = join_all(buf).await;
-            println!("Completed batch of {} blocks", BATCH_SIZE * EXECUTE_SIZE as u64);
+            info!("Completed batch of {} blocks", BATCH_SIZE * EXECUTE_SIZE as u64);
             buf = Vec::new();
         }
     }
@@ -238,10 +242,9 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
 
     let counter = COUNTER.read().unwrap();
     info!(
-        "Successfully downloaded {} blocks and {} tx containing {} messages in {} seconds",
+        "Successfully downloaded {} blocks and {} tx in {} seconds",
         counter.blocks,
         counter.transactions,
-        counter.msgs,
         start.elapsed().as_secs()
     );
     save_last_download_timestamp(&db, now);
@@ -253,18 +256,19 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
     )}
 
 
-
+//saves serialized MsgSendToEth transaction to database
 pub fn save_msg_send_to_eth(db: &DB, key: &str, data: &CustomMsgSendToEth) {
     let data_json = serde_json::to_string(data).unwrap();
     db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
 }
 
-// Load the MsgSendToEth transaction
+// Load & deseralize the MsgSendToEth transaction
 pub fn load_msg_send_to_eth(db: &DB, key: &str) -> Option<CustomMsgSendToEth> {
     let res = db.get(key.as_bytes()).unwrap();
     res.map(|bytes| serde_json::from_slice::<CustomMsgSendToEth>(&bytes).unwrap())
 }
 
+// Timestamp functions
 fn save_last_download_timestamp(db: &DB, timestamp: u64) {
     let key = "last_download_timestamp";
     db.put(key.as_bytes(), timestamp.to_string().as_bytes()).unwrap();
