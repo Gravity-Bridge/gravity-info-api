@@ -28,7 +28,7 @@ use log::info;
 use rustls::ServerConfig;
 use total_suppy::chain_total_supply_thread;
 use volume::bridge_volume_thread;
-use transactions::{transactions, ApiResponse, CustomMsgSendToEth};
+use transactions::{transactions, ApiResponse, CustomMsgSendToEth, CustomMsgTransfer};
 use std::sync::Arc;
 use rocksdb::DB;
 use rocksdb::Options;
@@ -105,7 +105,7 @@ async fn get_bridge_volume() -> impl Responder {
     }
 }
 
-#[get("/transactions")]
+#[get("/transactions/send_to_eth")]
 async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
     let mut response_data = Vec::new();
 
@@ -117,11 +117,39 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
                 let key_str = String::from_utf8_lossy(&key);
                 if key_str.starts_with("msgSendToEth_") {
                     let msg_send_to_eth: CustomMsgSendToEth = serde_json::from_slice(&value).unwrap();
-                    println!("Queried MsgSendToEth: {:?}", msg_send_to_eth);
+                    info!("Queried MsgSendToEth: {:?}", key_str);
                     response_data.push(ApiResponse {
                         tx_hash: key_str.replace("msgSendToEth_", ""),
                         data: serde_json::to_value(&msg_send_to_eth).unwrap(),
-                    });
+                    })
+                }
+            }
+            Err(err) => {
+                eprintln!("RocksDB iterator error: {}", err);
+            }
+        }
+    }
+    response_data.sort_by(|a, b| a.tx_hash.cmp(&b.tx_hash));
+    HttpResponse::Ok().json(response_data)
+}
+
+#[get("/transactions/ibc_transfer")]
+async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
+    let mut response_data = Vec::new();
+
+    let iterator = db.iterator(rocksdb::IteratorMode::Start);
+
+    for item in iterator {
+        match item {
+            Ok((key, value)) => {
+                let key_str = String::from_utf8_lossy(&key);
+                if key_str.starts_with("msgIbcTransfer_") {
+                    let msg_ibc_transfer: CustomMsgTransfer = serde_json::from_slice(&value).unwrap();
+                    info!("Queried MsgIbcTransfer: {:?}", key_str);
+                    response_data.push(ApiResponse {
+                        tx_hash: key_str.replace("msgIbcTransfer_", ""),
+                        data: serde_json::to_value(&msg_ibc_transfer).unwrap(),
+                    })
                 }
             }
             Err(err) => {
@@ -167,6 +195,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_bridge_volume)
             .app_data(api_db.clone())
             .service(get_all_msg_send_to_eth_transactions)
+            .service(get_all_msg_ibc_transfer_transactions)
     });
 
     let server = if SSL {
