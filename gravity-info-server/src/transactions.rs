@@ -1,5 +1,6 @@
 use cosmos_sdk_proto_althea::{
     cosmos::tx::v1beta1::{TxBody, TxRaw},
+    ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height},
 };
 
 use log::info;
@@ -24,7 +25,9 @@ lazy_static! {
     static ref COUNTER: Arc<RwLock<Counters>> = Arc::new(RwLock::new(Counters {
         blocks: 0,
         transactions: 0,
-        msgs: 0
+        msgs: 0,
+        ibc_msgs: 0,
+        send_eth_msgs: 0
     }));
 }
 
@@ -32,6 +35,8 @@ pub struct Counters {
     blocks: u64,
     transactions: u64,
     msgs: u64,
+    ibc_msgs: u64,
+    send_eth_msgs: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -41,6 +46,32 @@ pub struct CustomMsgSendToEth {
     amount: Vec<CustomCoin>,
     bridge_fee: Vec<CustomCoin>,
     chain_fee: Vec<CustomCoin>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CustomMsgTransfer {
+    source_port: String,
+    source_channel: String,
+    token: Vec<CustomCoin>,
+    sender: String,
+    receiver: String,
+    timeout_height: Option<CustomHeight>,
+    timeout_timestamp: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CustomHeight {
+    pub revision_number: u64,
+    pub revision_height: u64,
+}
+
+impl From<&Height> for CustomHeight {
+    fn from(height: &Height) -> Self {
+        CustomHeight {
+            revision_number: height.revision_number,
+            revision_height: height.revision_height,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -91,6 +122,27 @@ impl From<&MsgSendToEth> for CustomMsgSendToEth {
     }
 }
 
+impl From<&MsgTransfer> for CustomMsgTransfer {
+    fn from(msg: &MsgTransfer) -> Self {
+        CustomMsgTransfer {
+            source_port: msg.source_port.clone(),
+            source_channel: msg.source_channel.clone(),
+            token: msg
+                .token
+                .as_ref()
+                .map(|coin| CustomCoin {
+                    denom: coin.denom.clone(),
+                    amount: coin.amount.clone(),
+                })
+                .into_iter()
+                .collect(),
+            sender: msg.sender.clone(),
+            receiver: msg.receiver.clone(),
+            timeout_height: msg.timeout_height.as_ref().map(|height| CustomHeight::from(height)),
+            timeout_timestamp: msg.timeout_timestamp,
+        }
+    }
+}
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// finds earliest available block using binary search, keep in mind this cosmos
@@ -117,6 +169,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
     let mut tx_counter = 0;
     let mut msg_counter = 0;
+    let mut ibc_transfer_counter = 0;
+    let mut send_eth_counter = 0;
     let blocks_len = blocks.len() as u64;
     let mut current_block = start;
 
@@ -137,27 +191,51 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
             let tx_body: TxBody = decode_any(body_any).unwrap();
 
             let mut has_msg_send_to_eth = false;
+            let mut has_msg_ibc_transfer = false;
+
             // tx sorting
             for message in tx_body.messages {
                 if message.type_url == "/gravity.v1.MsgSendToEth" {
                     has_msg_send_to_eth = true;
                     msg_counter += 1;
-            
+
                     let msg_send_to_eth_any = prost_types::Any {
                         type_url: "/gravity.v1.MsgSendToEth".to_string(),
                         value: message.value,
                     };
                     let msg_send_to_eth: Result<MsgSendToEth, _> = decode_any(msg_send_to_eth_any);
-            
+
                     if let Ok(msg_send_to_eth) = msg_send_to_eth {
                         let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
                         let key = format!("msgSendToEth_{}", tx_hash);
                         save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
                     }
+                } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
+                    has_msg_ibc_transfer = true;
+                    msg_counter += 1;
+
+                    let msg_ibc_transfer_any = prost_types::Any {
+                        type_url: "/ibc.applications.transfer.v1.MsgTransfer".to_string(),
+                        value: message.value,
+                    };
+                    let msg_ibc_transfer: Result<MsgTransfer, _> = decode_any(msg_ibc_transfer_any);
+
+                    if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
+                        let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
+                        let key = format!("msgIbcTransfer_{}", tx_hash);
+                        save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
+                    }
                 }
             }
+
             if has_msg_send_to_eth {
                 tx_counter += 1;
+                send_eth_counter += 1;
+
+            }
+            if has_msg_ibc_transfer {
+                tx_counter += 1;
+                ibc_transfer_counter += 1;
             }
         }
         current_block += 1;
@@ -166,8 +244,13 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     c.blocks += blocks_len;
     c.transactions += tx_counter;
     c.msgs += msg_counter;
+    c.ibc_msgs += ibc_transfer_counter;
+    c.send_eth_msgs += send_eth_counter;
+    info!(
+        "Parsed {} blocks, {} transactions, {} ibc messages, {} send to eth messages",
+        blocks_len, tx_counter, ibc_transfer_counter, send_eth_counter
+    );
 }
-
 
 pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Options) -> tokio::task::JoinHandle<()> {
     info!("Started downloading & parsing transactions");
@@ -242,9 +325,11 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
 
     let counter = COUNTER.read().unwrap();
     info!(
-        "Successfully downloaded {} blocks and {} tx in {} seconds",
+        "Successfully downloaded {} blocks and {} tx containing {} send_to_eth msgs and {} ibc_transfer msgs in {} seconds",
         counter.blocks,
         counter.transactions,
+        counter.send_eth_msgs,
+        counter.ibc_msgs,
         start.elapsed().as_secs()
     );
     save_last_download_timestamp(&db, now);
@@ -266,6 +351,17 @@ pub fn save_msg_send_to_eth(db: &DB, key: &str, data: &CustomMsgSendToEth) {
 pub fn load_msg_send_to_eth(db: &DB, key: &str) -> Option<CustomMsgSendToEth> {
     let res = db.get(key.as_bytes()).unwrap();
     res.map(|bytes| serde_json::from_slice::<CustomMsgSendToEth>(&bytes).unwrap())
+}
+
+pub fn save_msg_ibc_transfer(db: &DB, key: &str, data: &CustomMsgTransfer) {
+    let data_json = serde_json::to_string(data).unwrap();
+    db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
+}
+
+// Load & deseralize the MsgSendToEth transaction
+pub fn load_msg_ibc_transfer(db: &DB, key: &str) -> Option<CustomMsgTransfer> {
+    let res = db.get(key.as_bytes()).unwrap();
+    res.map(|bytes| serde_json::from_slice::<CustomMsgTransfer>(&bytes).unwrap())
 }
 
 // Timestamp functions
