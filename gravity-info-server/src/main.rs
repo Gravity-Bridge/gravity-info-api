@@ -24,7 +24,7 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use env_logger::Env;
 use gravity_info::{blockchain_info_thread, get_eth_info};
-use log::info;
+use log::{info, error};
 use rustls::ServerConfig;
 use total_suppy::chain_total_supply_thread;
 use volume::bridge_volume_thread;
@@ -125,7 +125,7 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
                 }
             }
             Err(err) => {
-                eprintln!("RocksDB iterator error: {}", err);
+                error!("RocksDB iterator error: {}", err);
             }
         }
     }

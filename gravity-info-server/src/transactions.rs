@@ -144,6 +144,19 @@ impl From<&MsgTransfer> for CustomMsgTransfer {
     }
 }
 
+const DEVELOPMENT: bool = cfg!(feature = "development");
+const SSL: bool = !DEVELOPMENT;
+const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
+    "gravity-grpc.polkachu.com"
+} else {
+    "info.gravitychain.io"
+};
+const PORT: u16 = if cfg!(test) || DEVELOPMENT {
+    14290
+} else {
+    9000
+};
+
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// finds earliest available block using binary search, keep in mind this cosmos
 /// node will not have history from chain halt upgrades and could be state synced
@@ -255,7 +268,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Options) -> tokio::task::JoinHandle<()> {
     info!("Started downloading & parsing transactions");
     tokio::spawn(async move {
-    let contact = Contact::new("http://gravity-grpc.polkachu.com:14290", TIMEOUT, "gravity")
+    let url = format!("http://{}:{}", DOMAIN, PORT);
+    let contact = Contact::new(&url, TIMEOUT, "gravity")
         .expect("invalid url");
 
     let status = contact
