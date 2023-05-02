@@ -117,7 +117,6 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
                 let key_str = String::from_utf8_lossy(&key);
                 if key_str.starts_with("msgSendToEth_") {
                     let msg_send_to_eth: CustomMsgSendToEth = serde_json::from_slice(&value).unwrap();
-                    info!("Queried MsgSendToEth: {:?}", key_str);
                     response_data.push(ApiResponse {
                         tx_hash: key_str.replace("msgSendToEth_", ""),
                         data: serde_json::to_value(&msg_send_to_eth).unwrap(),
@@ -145,7 +144,6 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
                 let key_str = String::from_utf8_lossy(&key);
                 if key_str.starts_with("msgIbcTransfer_") {
                     let msg_ibc_transfer: CustomMsgTransfer = serde_json::from_slice(&value).unwrap();
-                    info!("Queried MsgIbcTransfer: {:?}", key_str);
                     response_data.push(ApiResponse {
                         tx_hash: key_str.replace("msgIbcTransfer_", ""),
                         data: serde_json::to_value(&msg_ibc_transfer).unwrap(),
