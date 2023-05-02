@@ -259,10 +259,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     c.msgs += msg_counter;
     c.ibc_msgs += ibc_transfer_counter;
     c.send_eth_msgs += send_eth_counter;
-    info!(
-        "Parsed {} blocks, {} transactions, {} ibc messages, {} send to eth messages",
-        blocks_len, tx_counter, ibc_transfer_counter, send_eth_counter
-    );
+
 }
 
 pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Options) -> tokio::task::JoinHandle<()> {
