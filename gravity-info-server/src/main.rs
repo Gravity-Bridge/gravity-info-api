@@ -4,8 +4,8 @@ extern crate lazy_static;
 pub mod gravity_info;
 pub mod tls;
 pub mod total_suppy;
-pub mod volume;
 pub mod transactions;
+pub mod volume;
 
 const DEVELOPMENT: bool = cfg!(feature = "development");
 const SSL: bool = !DEVELOPMENT;
@@ -24,15 +24,14 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use env_logger::Env;
 use gravity_info::{blockchain_info_thread, get_eth_info};
-use log::{info, error};
-use rustls::ServerConfig;
-use total_suppy::chain_total_supply_thread;
-use volume::bridge_volume_thread;
-use transactions::{transactions, ApiResponse, CustomMsgSendToEth, CustomMsgTransfer};
-use std::sync::Arc;
-use rocksdb::DB;
+use log::{error, info};
 use rocksdb::Options;
-
+use rocksdb::DB;
+use rustls::ServerConfig;
+use std::sync::Arc;
+use total_suppy::chain_total_supply_thread;
+use transactions::{transaction_info_thread, ApiResponse, CustomMsgSendToEth, CustomMsgTransfer};
+use volume::bridge_volume_thread;
 
 #[get("/total_supply")]
 async fn get_total_supply() -> impl Responder {
@@ -115,7 +114,8 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
             Ok((key, value)) => {
                 let key_str = String::from_utf8_lossy(&key);
                 if key_str.starts_with("msgSendToEth_") {
-                    let msg_send_to_eth: CustomMsgSendToEth = serde_json::from_slice(&value).unwrap();
+                    let msg_send_to_eth: CustomMsgSendToEth =
+                        serde_json::from_slice(&value).unwrap();
                     response_data.push(ApiResponse {
                         tx_hash: key_str.replace("msgSendToEth_", ""),
                         data: serde_json::to_value(&msg_send_to_eth).unwrap(),
@@ -142,7 +142,8 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
             Ok((key, value)) => {
                 let key_str = String::from_utf8_lossy(&key);
                 if key_str.starts_with("msgIbcTransfer_") {
-                    let msg_ibc_transfer: CustomMsgTransfer = serde_json::from_slice(&value).unwrap();
+                    let msg_ibc_transfer: CustomMsgTransfer =
+                        serde_json::from_slice(&value).unwrap();
                     response_data.push(ApiResponse {
                         tx_hash: key_str.replace("msgIbcTransfer_", ""),
                         data: serde_json::to_value(&msg_ibc_transfer).unwrap(),
@@ -162,12 +163,12 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
 async fn main() -> std::io::Result<()> {
     openssl_probe::init_ssl_cert_env_vars();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-     // starts a background thread for downloading transactions
-     let mut db_options = Options::default();
-     db_options.create_if_missing(true);
-     let db = Arc::new(DB::open(&db_options, "transactions").expect("Failed to open database"));
-     let api_db = web::Data::new(db.clone());
-     transactions(api_db.clone(), db.clone(), &db_options);
+    // starts a background thread for downloading transactions
+    let mut db_options = Options::default();
+    db_options.create_if_missing(true);
+    let db = Arc::new(DB::open(&db_options, "transactions").expect("Failed to open database"));
+    let api_db = web::Data::new(db.clone());
+    transaction_info_thread(db.clone());
     // starts background thread for gathering into
     blockchain_info_thread();
     // starts a background thread for generating the total supply numbers
@@ -213,5 +214,4 @@ async fn main() -> std::io::Result<()> {
     server.run().await?;
 
     Ok(())
-
 }

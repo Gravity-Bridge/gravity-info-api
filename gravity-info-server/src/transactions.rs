@@ -1,24 +1,20 @@
+use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
+use actix_rt::System;
 use cosmos_sdk_proto_althea::{
     cosmos::tx::v1beta1::{TxBody, TxRaw},
     ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height},
 };
-
-use log::info;
-use rocksdb::{Options, DB};
-use gravity_proto::gravity::MsgSendToEth;
-use actix_web::web;
-use serde::{Serialize, Deserialize};
-
-use deep_space::{
-    client::Contact,
-    utils::decode_any,
-};
-
+use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
+use gravity_proto::gravity::MsgSendToEth;
 use lazy_static::lazy_static;
+use log::info;
+use rocksdb::DB;
+use serde::{Deserialize, Serialize};
 use std::{
     sync::{Arc, RwLock},
-    time::{Duration, Instant}
+    thread,
+    time::Instant,
 };
 
 lazy_static! {
@@ -138,26 +134,12 @@ impl From<&MsgTransfer> for CustomMsgTransfer {
                 .collect(),
             sender: msg.sender.clone(),
             receiver: msg.receiver.clone(),
-            timeout_height: msg.timeout_height.as_ref().map(|height| CustomHeight::from(height)),
+            timeout_height: msg.timeout_height.as_ref().map(CustomHeight::from),
             timeout_timestamp: msg.timeout_timestamp,
         }
     }
 }
 
-const DEVELOPMENT: bool = cfg!(feature = "development");
-const SSL: bool = !DEVELOPMENT;
-const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
-    "gravity-grpc.polkachu.com"
-} else {
-    "info.gravitychain.io"
-};
-const PORT: u16 = if cfg!(test) || DEVELOPMENT {
-    14290
-} else {
-    9000
-};
-
-const TIMEOUT: Duration = Duration::from_secs(5);
 /// finds earliest available block using binary search, keep in mind this cosmos
 /// node will not have history from chain halt upgrades and could be state synced
 /// and missing history before the state sync
@@ -185,7 +167,6 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     let mut ibc_transfer_counter = 0;
     let mut send_eth_counter = 0;
     let blocks_len = blocks.len() as u64;
-    let mut current_block = start;
 
     for block in blocks {
         let block = block.unwrap();
@@ -196,7 +177,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                 value: tx,
             };
             let tx_raw: TxRaw = decode_any(raw_tx_any.clone()).unwrap();
-            let tx_hash = sha256::digest_bytes(&raw_tx_any.value).to_uppercase();
+            let value_ref: &[u8] = raw_tx_any.value.as_ref();
+            let tx_hash = sha256::digest(value_ref).to_uppercase();
             let body_any = prost_types::Any {
                 type_url: "/cosmos.tx.v1beta1.TxBody".to_string(),
                 value: tx_raw.body_bytes,
@@ -244,14 +226,12 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
             if has_msg_send_to_eth {
                 tx_counter += 1;
                 send_eth_counter += 1;
-
             }
             if has_msg_ibc_transfer {
                 tx_counter += 1;
                 ibc_transfer_counter += 1;
             }
         }
-        current_block += 1;
     }
     let mut c = COUNTER.write().unwrap();
     c.blocks += blocks_len;
@@ -259,15 +239,23 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     c.msgs += msg_counter;
     c.ibc_msgs += ibc_transfer_counter;
     c.send_eth_msgs += send_eth_counter;
-
 }
 
-pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Options) -> tokio::task::JoinHandle<()> {
+pub fn transaction_info_thread(db: Arc<DB>) {
+    info!("Starting transaction info thread thread");
+
+    thread::spawn(move || loop {
+        let runner = System::new();
+        runner.block_on(async {
+            transactions(&db).await;
+        });
+    });
+}
+
+pub async fn transactions(db: &DB) {
     info!("Started downloading & parsing transactions");
-    tokio::spawn(async move {
-    let url = format!("http://{}:{}", DOMAIN, PORT);
-    let contact = Contact::new(&url, TIMEOUT, "gravity")
-        .expect("invalid url");
+    let contact: Contact =
+        Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
 
     let status = contact
         .get_chain_status()
@@ -283,28 +271,22 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
     // now we find the earliest block this node has via binary search, we could just read it from
     // the error message you get when requesting an earlier block, but this was more fun
     let earliest_block = get_earliest_block(&contact, 0, latest_block).await;
+
+    let earliest_block = match load_last_download_block(db) {
+        Some(block) => block,
+        None => earliest_block,
+    };
+
     info!(
         "This node has {} blocks to download, downloading to database",
         latest_block - earliest_block
     );
     let start = Instant::now();
 
-
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-//Timestamp for downloading blocks to database
-    let should_download = match load_last_download_timestamp(&db) {
-        Some(timestamp) => now - timestamp > 86400,
-        None => true,
-    };
-
-    if should_download {
-
+    // how many blocks to search per future
     const BATCH_SIZE: u64 = 500;
-    const EXECUTE_SIZE: usize = 200;
+    // how many futures to execute at once
+    const EXECUTE_SIZE: usize = 10;
     let mut pos = earliest_block;
     let mut futures = Vec::new();
     while pos < latest_block {
@@ -316,19 +298,22 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
             pos = latest_block;
             latest_block
         };
-        let fut = search(&contact, start, end, &db);
+        let fut = search(&contact, start, end, db);
         futures.push(fut);
     }
 
-    let mut futures = futures.into_iter();
+    let futures = futures.into_iter();
 
     let mut buf = Vec::new();
-    while let Some(fut) = futures.next() {
+    for fut in futures {
         if buf.len() < EXECUTE_SIZE {
             buf.push(fut);
         } else {
             let _ = join_all(buf).await;
-            info!("Completed batch of {} blocks", BATCH_SIZE * EXECUTE_SIZE as u64);
+            info!(
+                "Completed batch of {} blocks",
+                BATCH_SIZE * EXECUTE_SIZE as u64
+            );
             buf = Vec::new();
         }
     }
@@ -343,14 +328,8 @@ pub fn transactions(api_db: web::Data<Arc<DB>>, db: Arc<DB>, db_options: &Option
         counter.ibc_msgs,
         start.elapsed().as_secs()
     );
-    save_last_download_timestamp(&db, now);
-} else {
-    info!("Database exists and is less than 1 day old");
+    save_last_download_block(db, latest_block);
 }
-
-}
-    )}
-
 
 //saves serialized MsgSendToEth transaction to database
 pub fn save_msg_send_to_eth(db: &DB, key: &str, data: &CustomMsgSendToEth) {
@@ -375,14 +354,17 @@ pub fn load_msg_ibc_transfer(db: &DB, key: &str) -> Option<CustomMsgTransfer> {
     res.map(|bytes| serde_json::from_slice::<CustomMsgTransfer>(&bytes).unwrap())
 }
 
+const LAST_DOWNLOAD_BLOCK_KEY: &str = "last_download_block";
 // Timestamp functions
-fn save_last_download_timestamp(db: &DB, timestamp: u64) {
-    let key = "last_download_timestamp";
-    db.put(key.as_bytes(), timestamp.to_string().as_bytes()).unwrap();
+fn save_last_download_block(db: &DB, timestamp: u64) {
+    db.put(
+        LAST_DOWNLOAD_BLOCK_KEY.as_bytes(),
+        timestamp.to_string().as_bytes(),
+    )
+    .unwrap();
 }
 
-fn load_last_download_timestamp(db: &DB) -> Option<u64> {
-    let key = "last_download_timestamp";
-    let res = db.get(key.as_bytes()).unwrap();
+fn load_last_download_block(db: &DB) -> Option<u64> {
+    let res = db.get(LAST_DOWNLOAD_BLOCK_KEY.as_bytes()).unwrap();
     res.map(|bytes| String::from_utf8_lossy(&bytes).parse::<u64>().unwrap())
 }

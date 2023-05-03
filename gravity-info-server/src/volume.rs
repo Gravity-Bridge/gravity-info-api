@@ -95,7 +95,8 @@ pub fn bridge_volume_thread() {
                 );
                 info!("Starting volume query");
                 let start = Instant::now();
-                let (daily_volume, weekly_volume, monthly_volume ) = join3(daily_volume, weekly_volume, monthly_volume).await;
+                let (daily_volume, weekly_volume, monthly_volume) =
+                    join3(daily_volume, weekly_volume, monthly_volume).await;
                 match (daily_volume, weekly_volume, monthly_volume) {
                     (Ok(daily), Ok(weekly), Ok(monthly)) => {
                         set_volume_info(BridgeVolumeNumbers {

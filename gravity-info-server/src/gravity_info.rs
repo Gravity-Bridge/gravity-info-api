@@ -28,7 +28,8 @@ use web30::client::Web3;
 
 const LOOP_TIME: Duration = Duration::from_secs(30);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-pub const GRAVITY_NODE_GRPC: &str = "http://gravitychain.io:9090";
+//pub const GRAVITY_NODE_GRPC: &str = "http://gravitychain.io:9090";
+pub const GRAVITY_NODE_GRPC: &str = "http://chainripper-2.althea.net:9090";
 pub const GRAVITY_PREFIX: &str = "gravity";
 pub const ETH_NODE_RPC: &str = "https://eth.althea.net";
 pub const FINALITY_DELAY: u128 = 100;
