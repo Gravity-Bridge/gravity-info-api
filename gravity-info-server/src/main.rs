@@ -32,7 +32,6 @@ use transactions::{transactions, ApiResponse, CustomMsgSendToEth, CustomMsgTrans
 use std::sync::Arc;
 use rocksdb::DB;
 use rocksdb::Options;
-use tokio::runtime::Runtime;
 
 
 #[get("/total_supply")]

@@ -18,7 +18,7 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use std::{
     sync::{Arc, RwLock},
-    time::{Duration, Instant},
+    time::{Duration, Instant}
 };
 
 lazy_static! {
@@ -195,8 +195,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                 type_url: "/cosmos.tx.v1beta1.TxRaw".to_string(),
                 value: tx,
             };
-            let tx_raw: TxRaw = decode_any(raw_tx_any).unwrap();
-            let tx_hash = sha256::digest_bytes(&tx_raw.body_bytes).to_uppercase();
+            let tx_raw: TxRaw = decode_any(raw_tx_any.clone()).unwrap();
+            let tx_hash = sha256::digest_bytes(&raw_tx_any.value).to_uppercase();
             let body_any = prost_types::Any {
                 type_url: "/cosmos.tx.v1beta1.TxBody".to_string(),
                 value: tx_raw.body_bytes,

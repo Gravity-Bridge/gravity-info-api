@@ -4,7 +4,6 @@
 use actix_web::cookie::time::Instant;
 use actix_web::rt::System;
 use clarity::Uint256;
-use futures::future::join;
 use futures::future::join3;
 use futures::future::join_all;
 use gravity_utils::error::GravityError;
