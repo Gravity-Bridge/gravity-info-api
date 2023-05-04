@@ -8,7 +8,10 @@ use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
 use gravity_proto::gravity::MsgSendToEth;
 use lazy_static::lazy_static;
-use log::info;
+use log::{info, error};
+use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::time::sleep;
 use rocksdb::DB;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -140,6 +143,8 @@ impl From<&MsgTransfer> for CustomMsgTransfer {
     }
 }
 
+const MAX_RETRIES: usize = 5;
+
 /// finds earliest available block using binary search, keep in mind this cosmos
 /// node will not have history from chain halt upgrades and could be state synced
 /// and missing history before the state sync
@@ -158,9 +163,38 @@ async fn get_earliest_block(contact: &Contact, mut start: u64, mut end: u64) -> 
     start + 1
 }
 
-// currently only loads MsgSendToEth messages then sends the data from the transactions to the DB
+// Loads sendToEth & MsgTransfer messages from grpc endpoint & downlaods to DB
 async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
-    let blocks = contact.get_block_range(start, end).await.unwrap();
+    let mut current_start = start;
+    let retries = AtomicUsize::new(0);
+
+    loop {
+        let blocks_result = contact.get_block_range(current_start, end).await;
+
+        let blocks = match blocks_result {
+            Ok(result) => {
+                retries.store(0, Ordering::Relaxed);
+                result
+            }
+            Err(e) => {
+                let current_retries = retries.fetch_add(1, Ordering::Relaxed);
+                if current_retries >= MAX_RETRIES {
+                    error!("Error getting block range: {:?}, exceeded max retries", e);
+                    break;
+                } else {
+                    error!("Error getting block range: {:?}, retrying", e);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            }
+        };
+
+        if blocks.is_empty() {
+            break;
+        }
+
+        let last_block_height = blocks.last().unwrap().as_ref().unwrap().header.as_ref().unwrap().height;
+
 
     let mut tx_counter = 0;
     let mut msg_counter = 0;
@@ -168,7 +202,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     let mut send_eth_counter = 0;
     let blocks_len = blocks.len() as u64;
 
-    for block in blocks {
+    for block in blocks.into_iter() {
         let block = block.unwrap();
 
         for tx in block.data.unwrap().txs {
@@ -232,6 +266,11 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                 ibc_transfer_counter += 1;
             }
         }
+        current_start = (last_block_height as u64) + 1;
+
+        if current_start > end {
+            break;
+        }
     }
     let mut c = COUNTER.write().unwrap();
     c.blocks += blocks_len;
@@ -239,23 +278,46 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     c.msgs += msg_counter;
     c.ibc_msgs += ibc_transfer_counter;
     c.send_eth_msgs += send_eth_counter;
+    }
 }
 
 pub fn transaction_info_thread(db: Arc<DB>) {
-    info!("Starting transaction info thread thread");
+    info!("Starting transaction info thread");
 
     thread::spawn(move || loop {
         let runner = System::new();
         runner.block_on(async {
-            transactions(&db).await;
+            match transactions(&db).await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("Error downloading transactions: {:?}", e);
+                    let mut retry_interval = Duration::from_secs(1);
+                    loop {
+                        info!("Retrying block download");
+                        sleep(retry_interval).await;
+                        match transactions(&db).await {
+                            Ok(_) => break,
+                            Err(e) => {
+                                error!("Error in transaction download retry: {:?}", e);
+                                retry_interval = if let Some(new_interval) = retry_interval.checked_mul(2) {
+                                    new_interval
+                                } else {
+                                    retry_interval
+                                };
+                            }
+                        }
+                    }
+                }
+            }
         });
     });
 }
 
-pub async fn transactions(db: &DB) {
+
+pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     info!("Started downloading & parsing transactions");
     let contact: Contact =
-        Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
+    Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX)?;
 
     let status = contact
         .get_chain_status()
@@ -329,6 +391,7 @@ pub async fn transactions(db: &DB) {
         start.elapsed().as_secs()
     );
     save_last_download_block(db, latest_block);
+    Ok(())
 }
 
 //saves serialized MsgSendToEth transaction to database
