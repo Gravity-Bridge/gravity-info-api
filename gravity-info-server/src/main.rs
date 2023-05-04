@@ -99,7 +99,7 @@ async fn get_bridge_volume() -> impl Responder {
     match get_volume_info() {
         Some(v) => HttpResponse::Ok().json(v),
         None => HttpResponse::InternalServerError()
-            .json("Info not yet generated, please query in 5 minutes"),
+            .json("Info not yet generated, please query in 20 minutes"),
     }
 }
 
