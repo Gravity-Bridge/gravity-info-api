@@ -316,13 +316,35 @@ pub fn transaction_info_thread(db: Arc<DB>) {
 
 pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     info!("Started downloading & parsing transactions");
-    let contact: Contact =
-    Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX)?;
+    let contact: Contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX)?;
 
-    let status = contact
-        .get_chain_status()
-        .await
-        .expect("Failed to get chain status, grpc error");
+    let retries = AtomicUsize::new(0);
+    let mut status = None;
+
+    loop {
+        let result = contact.get_chain_status().await;
+
+        match result {
+            Ok(chain_status) => {
+                retries.store(0, Ordering::Relaxed);
+                status = Some(chain_status);
+                break;
+            }
+            Err(e) => {
+                let current_retries = retries.fetch_add(1, Ordering::Relaxed);
+                if current_retries >= MAX_RETRIES {
+                    error!("Failed to get chain status, grpc error: {:?}", e);
+                    return Err(Box::new(e));
+                } else {
+                    error!("Failed to get chain status, grpc error: {:?}, retrying", e);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            }
+        }
+    }
+
+    let status = status.unwrap();
 
     // get the latest block this node has
     let latest_block = match status {
