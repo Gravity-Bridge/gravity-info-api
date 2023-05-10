@@ -8,17 +8,17 @@ use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
 use gravity_proto::gravity::MsgSendToEth;
 use lazy_static::lazy_static;
-use log::{info, error};
-use std::time::Duration;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::time::sleep;
+use log::{error, info};
 use rocksdb::DB;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 use std::{
     sync::{Arc, RwLock},
     thread,
     time::Instant,
 };
+use tokio::time::sleep;
 
 lazy_static! {
     static ref COUNTER: Arc<RwLock<Counters>> = Arc::new(RwLock::new(Counters {
@@ -193,91 +193,100 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
             break;
         }
 
-        let last_block_height = blocks.last().unwrap().as_ref().unwrap().header.as_ref().unwrap().height;
+        let last_block_height = blocks
+            .last()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .header
+            .as_ref()
+            .unwrap()
+            .height;
 
+        let mut tx_counter = 0;
+        let mut msg_counter = 0;
+        let mut ibc_transfer_counter = 0;
+        let mut send_eth_counter = 0;
+        let blocks_len = blocks.len() as u64;
 
-    let mut tx_counter = 0;
-    let mut msg_counter = 0;
-    let mut ibc_transfer_counter = 0;
-    let mut send_eth_counter = 0;
-    let blocks_len = blocks.len() as u64;
+        for block in blocks.into_iter() {
+            let block = block.unwrap();
 
-    for block in blocks.into_iter() {
-        let block = block.unwrap();
+            for tx in block.data.unwrap().txs {
+                let raw_tx_any = prost_types::Any {
+                    type_url: "/cosmos.tx.v1beta1.TxRaw".to_string(),
+                    value: tx,
+                };
+                let tx_raw: TxRaw = decode_any(raw_tx_any.clone()).unwrap();
+                let value_ref: &[u8] = raw_tx_any.value.as_ref();
+                let tx_hash = sha256::digest(value_ref).to_uppercase();
+                let body_any = prost_types::Any {
+                    type_url: "/cosmos.tx.v1beta1.TxBody".to_string(),
+                    value: tx_raw.body_bytes,
+                };
+                let tx_body: TxBody = decode_any(body_any).unwrap();
 
-        for tx in block.data.unwrap().txs {
-            let raw_tx_any = prost_types::Any {
-                type_url: "/cosmos.tx.v1beta1.TxRaw".to_string(),
-                value: tx,
-            };
-            let tx_raw: TxRaw = decode_any(raw_tx_any.clone()).unwrap();
-            let value_ref: &[u8] = raw_tx_any.value.as_ref();
-            let tx_hash = sha256::digest(value_ref).to_uppercase();
-            let body_any = prost_types::Any {
-                type_url: "/cosmos.tx.v1beta1.TxBody".to_string(),
-                value: tx_raw.body_bytes,
-            };
-            let tx_body: TxBody = decode_any(body_any).unwrap();
+                let mut has_msg_send_to_eth = false;
+                let mut has_msg_ibc_transfer = false;
 
-            let mut has_msg_send_to_eth = false;
-            let mut has_msg_ibc_transfer = false;
+                // tx sorting
+                for message in tx_body.messages {
+                    if message.type_url == "/gravity.v1.MsgSendToEth" {
+                        has_msg_send_to_eth = true;
+                        msg_counter += 1;
 
-            // tx sorting
-            for message in tx_body.messages {
-                if message.type_url == "/gravity.v1.MsgSendToEth" {
-                    has_msg_send_to_eth = true;
-                    msg_counter += 1;
+                        let msg_send_to_eth_any = prost_types::Any {
+                            type_url: "/gravity.v1.MsgSendToEth".to_string(),
+                            value: message.value,
+                        };
+                        let msg_send_to_eth: Result<MsgSendToEth, _> =
+                            decode_any(msg_send_to_eth_any);
 
-                    let msg_send_to_eth_any = prost_types::Any {
-                        type_url: "/gravity.v1.MsgSendToEth".to_string(),
-                        value: message.value,
-                    };
-                    let msg_send_to_eth: Result<MsgSendToEth, _> = decode_any(msg_send_to_eth_any);
+                        if let Ok(msg_send_to_eth) = msg_send_to_eth {
+                            let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
+                            let key = format!("msgSendToEth_{}", tx_hash);
+                            save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
+                        }
+                    } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
+                        has_msg_ibc_transfer = true;
+                        msg_counter += 1;
 
-                    if let Ok(msg_send_to_eth) = msg_send_to_eth {
-                        let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
-                        let key = format!("msgSendToEth_{}", tx_hash);
-                        save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
-                    }
-                } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
-                    has_msg_ibc_transfer = true;
-                    msg_counter += 1;
+                        let msg_ibc_transfer_any = prost_types::Any {
+                            type_url: "/ibc.applications.transfer.v1.MsgTransfer".to_string(),
+                            value: message.value,
+                        };
+                        let msg_ibc_transfer: Result<MsgTransfer, _> =
+                            decode_any(msg_ibc_transfer_any);
 
-                    let msg_ibc_transfer_any = prost_types::Any {
-                        type_url: "/ibc.applications.transfer.v1.MsgTransfer".to_string(),
-                        value: message.value,
-                    };
-                    let msg_ibc_transfer: Result<MsgTransfer, _> = decode_any(msg_ibc_transfer_any);
-
-                    if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
-                        let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
-                        let key = format!("msgIbcTransfer_{}", tx_hash);
-                        save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
+                        if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
+                            let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
+                            let key = format!("msgIbcTransfer_{}", tx_hash);
+                            save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
+                        }
                     }
                 }
-            }
 
-            if has_msg_send_to_eth {
-                tx_counter += 1;
-                send_eth_counter += 1;
+                if has_msg_send_to_eth {
+                    tx_counter += 1;
+                    send_eth_counter += 1;
+                }
+                if has_msg_ibc_transfer {
+                    tx_counter += 1;
+                    ibc_transfer_counter += 1;
+                }
             }
-            if has_msg_ibc_transfer {
-                tx_counter += 1;
-                ibc_transfer_counter += 1;
+            current_start = (last_block_height as u64) + 1;
+
+            if current_start > end {
+                break;
             }
         }
-        current_start = (last_block_height as u64) + 1;
-
-        if current_start > end {
-            break;
-        }
-    }
-    let mut c = COUNTER.write().unwrap();
-    c.blocks += blocks_len;
-    c.transactions += tx_counter;
-    c.msgs += msg_counter;
-    c.ibc_msgs += ibc_transfer_counter;
-    c.send_eth_msgs += send_eth_counter;
+        let mut c = COUNTER.write().unwrap();
+        c.blocks += blocks_len;
+        c.transactions += tx_counter;
+        c.msgs += msg_counter;
+        c.ibc_msgs += ibc_transfer_counter;
+        c.send_eth_msgs += send_eth_counter;
     }
 }
 
@@ -299,11 +308,12 @@ pub fn transaction_info_thread(db: Arc<DB>) {
                             Ok(_) => break,
                             Err(e) => {
                                 error!("Error in transaction download retry: {:?}", e);
-                                retry_interval = if let Some(new_interval) = retry_interval.checked_mul(2) {
-                                    new_interval
-                                } else {
-                                    retry_interval
-                                };
+                                retry_interval =
+                                    if let Some(new_interval) = retry_interval.checked_mul(2) {
+                                        new_interval
+                                    } else {
+                                        retry_interval
+                                    };
                             }
                         }
                     }
@@ -313,38 +323,30 @@ pub fn transaction_info_thread(db: Arc<DB>) {
     });
 }
 
-
 pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     info!("Started downloading & parsing transactions");
     let contact: Contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX)?;
 
-    let retries = AtomicUsize::new(0);
-    let mut status = None;
-
-    loop {
+    let mut retries = 0;
+    let status = loop {
         let result = contact.get_chain_status().await;
 
         match result {
             Ok(chain_status) => {
-                retries.store(0, Ordering::Relaxed);
-                status = Some(chain_status);
-                break;
+                break chain_status;
             }
             Err(e) => {
-                let current_retries = retries.fetch_add(1, Ordering::Relaxed);
-                if current_retries >= MAX_RETRIES {
+                retries += 1;
+                if retries >= MAX_RETRIES {
                     error!("Failed to get chain status, grpc error: {:?}", e);
                     return Err(Box::new(e));
                 } else {
                     error!("Failed to get chain status, grpc error: {:?}, retrying", e);
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                    continue;
                 }
             }
         }
-    }
-
-    let status = status.unwrap();
+    };
 
     // get the latest block this node has
     let latest_block = match status {
