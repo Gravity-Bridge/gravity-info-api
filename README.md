@@ -10,7 +10,7 @@ Issues and pull requests for new endpoints or information formats are welcome.
 
 ### /bridge_volume
 
-Provides weekly and daily volume information for [Gravity Bridge](https://etherscan.io/address/0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906#tokentxns). The value of all bridged tokens is converted to USDC and summed. Units here are in whole USDC. This endpoint is updated once a day.
+Provides monthly, weekly, and daily volume information for [Gravity Bridge](https://etherscan.io/address/0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906#tokentxns). The value of all bridged tokens is converted to USDC and summed. Units here are in whole USDC. This endpoint is updated once a day.
 
 - URL: `https://info.gravitychain.io:9000/bridge_volume`
 - Method: `GET`
@@ -27,7 +27,10 @@ Provides weekly and daily volume information for [Gravity Bridge](https://ethers
   "daily_outflow": 743278.8709419968,
   "weekly_volume": 45889152.25069955,
   "weekly_inflow": 38810900.95307093,
-  "weekly_outflow": 7078251.297628619
+  "weekly_outflow": 7078251.297628619,
+  "monthly_volume": 48873709.034694746,
+  "monthly_inflow": 21492436.59797602,
+  "monthly_outflow": 27381272.43671871
 }
 ```
 
@@ -340,5 +343,88 @@ Provides a breakdown of vesting versus non-vesting tokens for Gravity Bridge, va
 - Sample Call:
 
 `curl https://info.gravitychain.io:9000/supply_info`
+
+---
+
+### /transactions
+
+Provides Gravity Bridge transaction info. Currently two message types are supported **MsgSendToEth** & **MsgTransfer**.
+
+**MsgSendToEth** is the message type used to bridge assets from the Cosmos side to Ethereum.
+- URL: `https://info.gravitychain.io:9000/transactions/send_to_eth`
+- Method: `GET`
+- URL Params: `None`
+- Data Params: `None`
+- Success Response:
+  - Code: 200 OK
+  - Contents:
+
+```
+  {
+    "tx_hash": "9EA7C11DB18B87111E2679F3FFACC2B0C77135C60A05B7836F404B5F93EF7D18",
+    "data": {
+      "amount": [
+        {
+          "amount": "89200000000000000",
+          "denom": "gravity0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+        }
+      ],
+      "bridge_fee": [
+        {
+          "amount": "3200000000000000",
+          "denom": "gravity0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+        }
+      ],
+      "chain_fee": [],
+      "eth_dest": "0xf0f08f640d5553e79b91296dba6c3f10521e5174",
+      "sender": "gravity1xq7j6pr0zphuq6elxmrg98zkm57u36pvz2uwcc"
+    }
+  }
+```
+
+- Error Response: `500 Server Error`
+
+- Sample Call:
+
+`curl https://info.gravitychain.io:9000/transactions/send_to_eth`
+
+**MsgTransfer** is the message type used to transfer assets in between IBC enabled Cosmos chains.
+
+- URL: `https://info.gravitychain.io:9000/transactions/ibc_transfer`
+- Method: `GET`
+- URL Params: `None`
+- Data Params: `None`
+- Success Response:
+  - Code: 200 OK
+  - Contents:
+
+```
+  {
+    "tx_hash": "0000405E464C64DE8537B594742CBD9D7E0AD8EEFDB118158AC4582FFE101A10",
+    "data": {
+      "receiver": "persistence1ac05mw63eury6arcux7u2qtxwxq68qvefxqczm",
+      "sender": "gravity1apkwuud8qdkw3nectycl7d46j5jvqs4kq8nhhf",
+      "source_channel": "channel-24",
+      "source_port": "transfer",
+      "timeout_height": {
+        "revision_height": 4954551,
+        "revision_number": 1
+      },
+      "timeout_timestamp": 0,
+      "token": [
+        {
+          "amount": "150000000000000000000",
+          "denom": "gravity0xfB5c6815cA3AC72Ce9F5006869AE67f18bF77006"
+        }
+      ]
+    }
+  }
+```
+
+- Error Response: `500 Server Error`
+
+- Sample Call:
+
+`curl https://info.gravitychain.io:9000/transactions/ibc_transfer`
 
 ---
