@@ -11,12 +11,11 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use rocksdb::DB;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
 use std::{
+    sync::atomic::{AtomicUsize, Ordering},
     sync::{Arc, RwLock},
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 use tokio::time::sleep;
 
@@ -193,6 +192,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
             break;
         }
 
+        // gets the last block that was successfully fetched to be referenced
+        // in case of grpc error
         let last_block_height = blocks
             .last()
             .unwrap()
@@ -203,6 +204,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
             .unwrap()
             .height;
 
+        // counters for transactions, messages, blocks & tx types
         let mut tx_counter = 0;
         let mut msg_counter = 0;
         let mut ibc_transfer_counter = 0;
@@ -211,7 +213,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
         for block in blocks.into_iter() {
             let block = block.unwrap();
-
+            // tx fetching
             for tx in block.data.unwrap().txs {
                 let raw_tx_any = prost_types::Any {
                     type_url: "/cosmos.tx.v1beta1.TxRaw".to_string(),
@@ -323,6 +325,8 @@ pub fn transaction_info_thread(db: Arc<DB>) {
     });
 }
 
+/// creates batches of transactions found and sorted using the search function
+/// then writes them to the db
 pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     info!("Started downloading & parsing transactions");
     let contact: Contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX)?;
@@ -418,16 +422,10 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-//saves serialized MsgSendToEth transaction to database
+// saves serialized transaction to database
 pub fn save_msg_send_to_eth(db: &DB, key: &str, data: &CustomMsgSendToEth) {
     let data_json = serde_json::to_string(data).unwrap();
     db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
-}
-
-// Load & deseralize the MsgSendToEth transaction
-pub fn load_msg_send_to_eth(db: &DB, key: &str) -> Option<CustomMsgSendToEth> {
-    let res = db.get(key.as_bytes()).unwrap();
-    res.map(|bytes| serde_json::from_slice::<CustomMsgSendToEth>(&bytes).unwrap())
 }
 
 pub fn save_msg_ibc_transfer(db: &DB, key: &str, data: &CustomMsgTransfer) {
@@ -435,14 +433,17 @@ pub fn save_msg_ibc_transfer(db: &DB, key: &str, data: &CustomMsgTransfer) {
     db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
 }
 
-// Load & deseralize the MsgSendToEth transaction
+// load & deseralize the transactions
+pub fn load_msg_send_to_eth(db: &DB, key: &str) -> Option<CustomMsgSendToEth> {
+    let res = db.get(key.as_bytes()).unwrap();
+    res.map(|bytes| serde_json::from_slice::<CustomMsgSendToEth>(&bytes).unwrap())
+}
 pub fn load_msg_ibc_transfer(db: &DB, key: &str) -> Option<CustomMsgTransfer> {
     let res = db.get(key.as_bytes()).unwrap();
     res.map(|bytes| serde_json::from_slice::<CustomMsgTransfer>(&bytes).unwrap())
 }
 
-const LAST_DOWNLOAD_BLOCK_KEY: &str = "last_download_block";
-// Timestamp functions
+// timestamp function using downloaded blocks as a source of truth
 fn save_last_download_block(db: &DB, timestamp: u64) {
     db.put(
         LAST_DOWNLOAD_BLOCK_KEY.as_bytes(),
@@ -450,6 +451,9 @@ fn save_last_download_block(db: &DB, timestamp: u64) {
     )
     .unwrap();
 }
+
+// the last block added to the database 
+const LAST_DOWNLOAD_BLOCK_KEY: &str = "last_download_block";
 
 fn load_last_download_block(db: &DB) -> Option<u64> {
     let res = db.get(LAST_DOWNLOAD_BLOCK_KEY.as_bytes()).unwrap();
