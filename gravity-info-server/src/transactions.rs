@@ -452,7 +452,7 @@ fn save_last_download_block(db: &DB, timestamp: u64) {
     .unwrap();
 }
 
-// the last block added to the database 
+// the last block added to the database
 const LAST_DOWNLOAD_BLOCK_KEY: &str = "last_download_block";
 
 fn load_last_download_block(db: &DB) -> Option<u64> {
