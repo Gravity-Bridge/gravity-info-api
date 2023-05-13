@@ -355,10 +355,39 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // get the latest block this node has
-    let latest_block = match status {
-        deep_space::client::ChainStatus::Moving { block_height } => block_height,
-        _ => panic!("Node is not synced or not running"),
-    };
+    let mut current_status = status;
+    let latest_block;
+    loop {
+        match current_status {
+            deep_space::client::ChainStatus::Moving { block_height } => {
+                latest_block = Some(block_height);
+                break;
+            }
+            _ => {
+                match contact.get_chain_status().await {
+                    Ok(chain_status) => {
+                        if let deep_space::client::ChainStatus::Moving { block_height } = chain_status {
+                            latest_block = Some(block_height);
+                            break;
+                        }
+                        current_status = chain_status;
+                    }
+                    Err(e) => {
+                        retries += 1;
+                        if retries >= MAX_RETRIES {
+                            error!("Failed to get chain status: {:?}", e);
+                            return Err(Box::new(e));
+                        } else {
+                            error!("Failed to get chain status: {:?}, retrying", e);
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    let latest_block = latest_block.expect("Node is not synced or not running");
 
     // now we find the earliest block this node has via binary search, we could just read it from
     // the error message you get when requesting an earlier block, but this was more fun

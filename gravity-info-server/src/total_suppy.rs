@@ -127,8 +127,8 @@ async fn compute_liquid_supply(
     info!("Got all accounts after {}ms", start.elapsed().as_millis());
     let users = get_balances_for_accounts(accounts, denom.clone()).await?;
     info!(
-        "Got all balances/vesting after {}ms",
-        start.elapsed().as_millis()
+        "Got all balances/vesting after {}s",
+        start.elapsed().as_secs()
     );
     // now that we have every account with every balance we can start computing the totals
 
@@ -295,7 +295,7 @@ async fn compute_liquid_supply(
         }
     }
 
-    info!("Finishes totals after {}ms", start.elapsed().as_millis());
+    info!("Finishes totals after {}s", start.elapsed().as_secs());
     Ok(ChainTotalSupplyNumbers {
         total_liquid_supply,
         total_liquid_balances,
