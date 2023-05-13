@@ -99,10 +99,16 @@ pub fn blockchain_info_thread() {
         runner.block_on(async move {
             let web30 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
             let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
-            // since we're rebuilding the async env every loop iteration we need to re-init this
-            let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
-                .await
-                .unwrap();
+
+            let mut grpc_client = loop {
+                match GravityQueryClient::connect(GRAVITY_NODE_GRPC).await {
+                    Ok(client) => break client,
+                    Err(e) => {
+                        error!("Failed to connect to the GRPC server: {:?}", e);
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                    }
+                }
+            };
 
             let gravity_contract_address =
                 match query_gravity_info(&contact, &mut grpc_client).await {
