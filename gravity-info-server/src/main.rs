@@ -34,12 +34,27 @@ use std::collections::HashMap;
 use total_suppy::chain_total_supply_thread;
 use transactions::{transaction_info_thread, ApiResponse, CustomMsgSendToEth, CustomMsgTransfer};
 use volume::bridge_volume_thread;
+use chrono::{DateTime, Local, NaiveDateTime, Utc, Datelike};
+
+#[derive(Debug, Serialize)]
+struct TimeFrameData {
+    time_frames: Vec<TimeFrame>,
+}
+
+#[derive(Debug, Serialize)]
+struct TimeFrame {
+    name: String,
+    totals: HashMap<String, u128>,
+}
 
 #[derive(Serialize)]
 struct BlockTransactions {
     block_number: u64,
     transactions: Vec<ApiResponse>,
+    formatted_date: String,
 }
+
+type BlockData = (String, Vec<ApiResponse>); 
 
 
 #[get("/total_supply")]
@@ -114,7 +129,7 @@ async fn get_bridge_volume() -> impl Responder {
 
 #[get("/transactions/send_to_eth")]
 async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
-    let mut response_data: HashMap<u64, Vec<ApiResponse>> = HashMap::new();
+    let mut response_data: HashMap<u64, BlockData> = HashMap::new();
 
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
@@ -123,17 +138,35 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
             Ok((key, value)) => {
                 let key_str = String::from_utf8_lossy(&key);
                 let key_parts: Vec<&str> = key_str.split(':').collect();
-                if key_parts.len() == 3 && key_parts[1] == "msgSendToEth" {
+                if key_parts.len() == 4 && key_parts[1] == "msgSendToEth" {
                     let msg_send_to_eth: CustomMsgSendToEth =
                         serde_json::from_slice(&value).unwrap();
                     let block_number = key_parts[0].parse::<u64>().unwrap();
+                    let timestamp = key_parts[2].parse::<i64>().unwrap();
+                    
+                    // Convert timestamp to DateTime
+                    let datetime_utc = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp, 0), Utc);
+                    
+                    // Convert DateTime to local time zone
+                    let datetime_local: DateTime<Local> = datetime_utc.into();
+                    
+                    // Extract month, day, and year
+                    let month = datetime_local.month();
+                    let day = datetime_local.day();
+                    let year = datetime_local.year();
+                    
+                    // Format the date string
+                    let formatted_date = format!("{:02}-{:02}-{}", month, day, year);
                     let api_response = ApiResponse {
-                        block_number,
-                        tx_hash: key_parts[2].to_string(),
+                        tx_hash: key_parts[3].to_string(),
                         data: serde_json::to_value(&msg_send_to_eth).unwrap(),
                     };
                     
-                    response_data.entry(block_number).or_insert(Vec::new()).push(api_response);
+                    response_data
+                        .entry(block_number)
+                        .or_insert((formatted_date, Vec::new()))
+                        .1
+                        .push(api_response);
                 }
             }
             Err(err) => {
@@ -147,21 +180,23 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
     response_data.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Convert Vec of tuples into Vec of BlockTransactions
-    let response_data: Vec<_> = response_data.into_iter().map(|(block_number, transactions)| {
-        BlockTransactions {
-            block_number,
-            transactions,
-        }
-    }).collect();
+    let response_data: Vec<_> = response_data
+        .into_iter()
+        .map(|(block_number, (formatted_date, transactions))| {
+            BlockTransactions {
+                block_number,
+                formatted_date,
+                transactions,
+            }
+        })
+        .collect();
 
     HttpResponse::Ok().json(response_data)
 }
 
-
-
 #[get("/transactions/ibc_transfer")]
 async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
-    let mut response_data: HashMap<u64, Vec<ApiResponse>> = HashMap::new();
+    let mut response_data: HashMap<u64, BlockData> = HashMap::new();
 
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
@@ -170,17 +205,38 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
             Ok((key, value)) => {
                 let key_str = String::from_utf8_lossy(&key);
                 let key_parts: Vec<&str> = key_str.split(':').collect();
-                if key_parts.len() == 3 && key_parts[1] == "msgIbcTransfer" {
+                if key_parts.len() == 4 && key_parts[1] == "msgIbcTransfer" {
                     let msg_ibc_transfer: CustomMsgTransfer =
                         serde_json::from_slice(&value).unwrap();
                     let block_number = key_parts[0].parse::<u64>().unwrap();
+                    let timestamp = key_parts[2].parse::<i64>().unwrap();
+
+                    // Convert timestamp to DateTime
+                    let datetime_utc = DateTime::<Utc>::from_utc(
+                        NaiveDateTime::from_timestamp(timestamp, 0),
+                        Utc,
+                    );
+
+                    // Convert DateTime to local time zone
+                    let datetime_local: DateTime<Local> = datetime_utc.into();
+
+                    // Extract month, day, and year
+                    let month = datetime_local.month();
+                    let day = datetime_local.day();
+                    let year = datetime_local.year();
+
+                    // Format the date string
+                    let formatted_date = format!("{:02}-{:02}-{}", month, day, year);
                     let api_response = ApiResponse {
-                        block_number,
-                        tx_hash: key_parts[2].to_string(),
+                        tx_hash: key_parts[3].to_string(),
                         data: serde_json::to_value(&msg_ibc_transfer).unwrap(),
                     };
-                    
-                    response_data.entry(block_number).or_insert(Vec::new()).push(api_response);
+
+                    response_data
+                        .entry(block_number)
+                        .or_insert((formatted_date, Vec::new()))
+                        .1
+                        .push(api_response);
                 }
             }
             Err(err) => {
@@ -194,16 +250,98 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
     response_data.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Convert Vec of tuples into Vec of BlockTransactions
-    let response_data: Vec<_> = response_data.into_iter().map(|(block_number, transactions)| {
-        BlockTransactions {
-            block_number,
-            transactions,
-        }
-    }).collect();
+    let response_data: Vec<_> = response_data
+        .into_iter()
+        .map(|(block_number, (formatted_date, transactions))| {
+            BlockTransactions {
+                block_number,
+                formatted_date,
+                transactions,
+            }
+        })
+        .collect();
 
     HttpResponse::Ok().json(response_data)
 }
 
+#[get("/transactions/send_to_eth/time")]
+async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Responder {
+    // Define the time frame duration in seconds
+    const ONE_DAY: u64 = 24 * 60 * 60;
+    const SEVEN_DAYS: u64 = 7 * ONE_DAY;
+    const THIRTY_DAYS: u64 = 30 * ONE_DAY;
+
+    let mut totals_1day: HashMap<String, u128> = HashMap::new();
+    let mut totals_7days: HashMap<String, u128> = HashMap::new();
+    let mut totals_30days: HashMap<String, u128> = HashMap::new();
+
+    let iterator = db.iterator(rocksdb::IteratorMode::Start);
+
+    for item in iterator {
+        match item {
+            Ok((key, value)) => {
+                let key_str = String::from_utf8_lossy(&key);
+                let key_parts: Vec<&str> = key_str.split(':').collect();
+                if key_parts.len() == 4 && key_parts[1] == "msgSendToEth" {
+                    let msg_send_to_eth: CustomMsgSendToEth =
+                        serde_json::from_slice(&value).unwrap();
+                    let timestamp = key_parts[2].parse::<i64>().unwrap();
+                    let amount = msg_send_to_eth.amount;
+
+                    if timestamp > (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(ONE_DAY)).unwrap()).timestamp() {
+                        // Within the 1-day time frame
+                        for custom_coin in amount.iter() {
+                            let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
+                            let denom = custom_coin.denom.clone();
+                            info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
+                            *totals_1day.entry(denom).or_default() += decimal_value;
+                        }
+                    }
+                    if timestamp > (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(SEVEN_DAYS)).unwrap()).timestamp() {
+                        // Within the 7-day time frame
+                        for custom_coin in amount.iter() {
+                            let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
+                            let denom = custom_coin.denom.clone();
+                            info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
+                            *totals_7days.entry(denom).or_default() += decimal_value;
+                        }
+                    }
+                    if timestamp > (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(THIRTY_DAYS)).unwrap()).timestamp() {
+                        // Within the 30-day time frame
+                        for custom_coin in amount.iter() {
+                            let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
+                            let denom = custom_coin.denom.clone();
+                            info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
+                            *totals_30days.entry(denom).or_default() += decimal_value;
+                        }
+                    }
+                }
+            }
+            Err(err) => {
+                error!("RocksDB iterator error: {}", err);
+            }
+        }
+    }
+
+    let response_data = TimeFrameData {
+        time_frames: vec![
+            TimeFrame {
+                name: "1 day".to_string(),
+                totals: totals_1day,
+            },
+            TimeFrame {
+                name: "7 days".to_string(),
+                totals: totals_7days,
+            },
+            TimeFrame {
+                name: "30 days".to_string(),
+                totals: totals_30days,
+            },
+        ],
+    };
+
+    HttpResponse::Ok().json(response_data)
+}
 
 
 #[actix_web::main]
@@ -241,6 +379,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(api_db.clone())
             .service(get_all_msg_send_to_eth_transactions)
             .service(get_all_msg_ibc_transfer_transactions)
+            .service(get_send_to_eth_transaction_totals)
     });
 
     let server = if SSL {

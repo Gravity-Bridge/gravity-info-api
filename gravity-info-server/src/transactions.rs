@@ -42,9 +42,9 @@ pub struct Counters {
 pub struct CustomMsgSendToEth {
     sender: String,
     eth_dest: String,
-    amount: Vec<CustomCoin>,
-    bridge_fee: Vec<CustomCoin>,
-    chain_fee: Vec<CustomCoin>,
+   pub amount: Vec<CustomCoin>,
+   pub bridge_fee: Vec<CustomCoin>,
+   pub chain_fee: Vec<CustomCoin>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,15 +75,14 @@ impl From<&Height> for CustomHeight {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CustomCoin {
-    denom: String,
-    amount: String,
+    pub denom: String,
+    pub amount: String,
 }
 
 #[derive(Serialize)]
 pub struct ApiResponse {
     pub tx_hash: String,
     pub data: serde_json::Value,
-    pub block_number: u64
 }
 
 impl From<&MsgSendToEth> for CustomMsgSendToEth {
@@ -216,8 +215,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
         for block in blocks.into_iter() {
             let block = block.unwrap();
             // Get the block number
-            let block_number = block.header.unwrap().height;
-            info!("Processing block number: {}", block_number);
+            let block_number = block.header.as_ref().unwrap().height;
+
             // tx fetching
             for tx in block.data.unwrap().txs {
                 let raw_tx_any = prost_types::Any {
@@ -251,7 +250,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_send_to_eth) = msg_send_to_eth {
                             let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
-                            let key = format!("{:012}:msgSendToEth:{}", block_number, tx_hash);
+                            let timestamp = block.header.as_ref().unwrap().time.as_ref().unwrap().seconds;
+                            let key = format!("{:012}:msgSendToEth:{}:{}", block_number, timestamp, tx_hash);
                             save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
                         }
                     } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
@@ -267,7 +267,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
                             let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
-                            let key = format!("{:012}:msgIbcTransfer:{}", block_number, tx_hash);
+                            let timestamp = block.header.as_ref().unwrap().time.as_ref().unwrap().seconds;
+                            let key = format!("{:012}:msgIbcTransfer:{}:{}", block_number, timestamp, tx_hash);
                             save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
                         }
                     }
@@ -283,7 +284,6 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                 }
             }
             current_start = (last_block_height as u64) + 1;
-
             if current_start > end {
                 break;
             }
@@ -495,3 +495,4 @@ fn load_last_download_block(db: &DB) -> Option<u64> {
     let res = db.get(LAST_DOWNLOAD_BLOCK_KEY.as_bytes()).unwrap();
     res.map(|bytes| String::from_utf8_lossy(&bytes).parse::<u64>().unwrap())
 }
+
