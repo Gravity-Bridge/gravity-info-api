@@ -17,6 +17,7 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 const PORT: u16 = 9000;
 
 use crate::gravity_info::get_erc20_metadata;
+use crate::transactions::CustomCoin;
 use crate::total_suppy::get_supply_info;
 use crate::volume::get_volume_info;
 use crate::{gravity_info::get_gravity_info, tls::*};
@@ -43,8 +44,9 @@ struct TimeFrameData {
 
 #[derive(Debug, Serialize)]
 struct TimeFrame {
-    name: String,
-    totals: HashMap<String, u128>,
+    period: String,
+    bridge_fee_totals: HashMap<String, u128>,
+    chain_fee_totals: HashMap<String, u128>,
 }
 
 #[derive(Serialize)]
@@ -271,9 +273,14 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
     const SEVEN_DAYS: u64 = 7 * ONE_DAY;
     const THIRTY_DAYS: u64 = 30 * ONE_DAY;
 
-    let mut totals_1day: HashMap<String, u128> = HashMap::new();
-    let mut totals_7days: HashMap<String, u128> = HashMap::new();
-    let mut totals_30days: HashMap<String, u128> = HashMap::new();
+    let mut bridge_fee_totals_1day: HashMap<String, u128> = HashMap::new();
+    let mut chain_fee_totals_1day: HashMap<String, u128> = HashMap::new();
+
+    let mut bridge_fee_totals_7days: HashMap<String, u128> = HashMap::new();
+    let mut chain_fee_totals_7days: HashMap<String, u128> = HashMap::new();
+
+    let mut bridge_fee_totals_30days: HashMap<String, u128> = HashMap::new();
+    let mut chain_fee_totals_30days: HashMap<String, u128> = HashMap::new();
 
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
@@ -286,36 +293,25 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
                     let msg_send_to_eth: CustomMsgSendToEth =
                         serde_json::from_slice(&value).unwrap();
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
-                    let amount = msg_send_to_eth.amount;
 
-                    if timestamp < (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(ONE_DAY)).unwrap()).timestamp() {
+                    let bridge_fee = msg_send_to_eth.bridge_fee.clone();
+                    let chain_fee = msg_send_to_eth.chain_fee.clone();
+
+                    // process data
+                    if timestamp <= (Utc::now() - chrono::Duration::seconds(ONE_DAY as i64)).timestamp() {
                         // 1-day time frame
-                        for custom_coin in amount.iter() {
-                            let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
-                            let denom = custom_coin.denom.clone();
-                            info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
-                            *totals_1day.entry(denom).or_default() += decimal_value;
-                            info!("{:?}", totals_1day);
-                        }
-                    }
-                    if timestamp < (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(SEVEN_DAYS)).unwrap()).timestamp() {
+                        bridge_fee_totals_1day = process_fee(bridge_fee.clone(), &bridge_fee_totals_1day);
+                        chain_fee_totals_1day = process_fee(chain_fee.clone(), &chain_fee_totals_1day);
+                    } 
+                    if timestamp <= (Utc::now() - chrono::Duration::seconds(SEVEN_DAYS as i64)).timestamp() {
                         // 7-day time frame
-                        for custom_coin in amount.iter() {
-                            let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
-                            let denom = custom_coin.denom.clone();
-                            info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
-                            *totals_7days.entry(denom).or_default() += decimal_value;
-                            println!("{:?}", totals_1day)
-                        }
-                    }
-                    if timestamp < (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(THIRTY_DAYS)).unwrap()).timestamp() {
+                        bridge_fee_totals_7days = process_fee(bridge_fee.clone(), &bridge_fee_totals_7days);
+                        chain_fee_totals_7days = process_fee(chain_fee.clone(), &chain_fee_totals_7days);
+                    } 
+                    if timestamp <= (Utc::now() - chrono::Duration::seconds(THIRTY_DAYS as i64)).timestamp() {
                         // 30-day time frame
-                        for custom_coin in amount.iter() {
-                            let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
-                            let denom = custom_coin.denom.clone();
-                            info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
-                            *totals_30days.entry(denom).or_default() += decimal_value;
-                        }
+                        bridge_fee_totals_30days = process_fee(bridge_fee, &bridge_fee_totals_30days);
+                        chain_fee_totals_30days = process_fee(chain_fee, &chain_fee_totals_30days);
                     }
                 }
             }
@@ -328,21 +324,34 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
     let response_data = TimeFrameData {
         time_frames: vec![
             TimeFrame {
-                name: "1 day".to_string(),
-                totals: totals_1day,
+                period: "1 day".to_string(),
+                bridge_fee_totals: bridge_fee_totals_1day,
+                chain_fee_totals: chain_fee_totals_1day,
             },
             TimeFrame {
-                name: "7 days".to_string(),
-                totals: totals_7days,
+                period: "7 days".to_string(),
+                bridge_fee_totals: bridge_fee_totals_7days,
+                chain_fee_totals: chain_fee_totals_7days,
             },
             TimeFrame {
-                name: "30 days".to_string(),
-                totals: totals_30days,
+                period: "30 days".to_string(),
+                bridge_fee_totals: bridge_fee_totals_30days,
+                chain_fee_totals: chain_fee_totals_30days,
             },
         ],
     };
 
     HttpResponse::Ok().json(response_data)
+}
+
+fn process_fee(fee: Vec<CustomCoin>, totals: &HashMap<String, u128>) -> HashMap<String, u128> {
+    let mut new_totals = totals.clone();
+    for custom_coin in fee {
+        let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
+        let denom = custom_coin.denom.clone();
+        *new_totals.entry(denom).or_default() += decimal_value;
+    }
+    new_totals
 }
 
 

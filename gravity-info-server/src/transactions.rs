@@ -73,7 +73,7 @@ impl From<&Height> for CustomHeight {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CustomCoin {
     pub denom: String,
     pub amount: String,
