@@ -28,10 +28,19 @@ use log::{error, info};
 use rocksdb::Options;
 use rocksdb::DB;
 use rustls::ServerConfig;
+use serde::Serialize;
 use std::sync::Arc;
+use std::collections::HashMap;
 use total_suppy::chain_total_supply_thread;
 use transactions::{transaction_info_thread, ApiResponse, CustomMsgSendToEth, CustomMsgTransfer};
 use volume::bridge_volume_thread;
+
+#[derive(Serialize)]
+struct BlockTransactions {
+    block_number: u64,
+    transactions: Vec<ApiResponse>,
+}
+
 
 #[get("/total_supply")]
 async fn get_total_supply() -> impl Responder {
@@ -105,7 +114,7 @@ async fn get_bridge_volume() -> impl Responder {
 
 #[get("/transactions/send_to_eth")]
 async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
-    let mut response_data = Vec::new();
+    let mut response_data: HashMap<u64, Vec<ApiResponse>> = HashMap::new();
 
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
@@ -113,13 +122,18 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
         match item {
             Ok((key, value)) => {
                 let key_str = String::from_utf8_lossy(&key);
-                if key_str.starts_with("msgSendToEth_") {
+                let key_parts: Vec<&str> = key_str.split(':').collect();
+                if key_parts.len() == 3 && key_parts[1] == "msgSendToEth" {
                     let msg_send_to_eth: CustomMsgSendToEth =
                         serde_json::from_slice(&value).unwrap();
-                    response_data.push(ApiResponse {
-                        tx_hash: key_str.replace("msgSendToEth_", ""),
+                    let block_number = key_parts[0].parse::<u64>().unwrap();
+                    let api_response = ApiResponse {
+                        block_number,
+                        tx_hash: key_parts[2].to_string(),
                         data: serde_json::to_value(&msg_send_to_eth).unwrap(),
-                    })
+                    };
+                    
+                    response_data.entry(block_number).or_insert(Vec::new()).push(api_response);
                 }
             }
             Err(err) => {
@@ -127,13 +141,27 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
             }
         }
     }
-    response_data.sort_by(|a, b| a.tx_hash.cmp(&b.tx_hash));
+
+    // Converting the HashMap to a Vec and sorting it by block number
+    let mut response_data: Vec<_> = response_data.into_iter().collect();
+    response_data.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // Convert Vec of tuples into Vec of BlockTransactions
+    let response_data: Vec<_> = response_data.into_iter().map(|(block_number, transactions)| {
+        BlockTransactions {
+            block_number,
+            transactions,
+        }
+    }).collect();
+
     HttpResponse::Ok().json(response_data)
 }
 
+
+
 #[get("/transactions/ibc_transfer")]
 async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
-    let mut response_data = Vec::new();
+    let mut response_data: HashMap<u64, Vec<ApiResponse>> = HashMap::new();
 
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
@@ -141,23 +169,42 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
         match item {
             Ok((key, value)) => {
                 let key_str = String::from_utf8_lossy(&key);
-                if key_str.starts_with("msgIbcTransfer_") {
+                let key_parts: Vec<&str> = key_str.split(':').collect();
+                if key_parts.len() == 3 && key_parts[1] == "msgIbcTransfer" {
                     let msg_ibc_transfer: CustomMsgTransfer =
                         serde_json::from_slice(&value).unwrap();
-                    response_data.push(ApiResponse {
-                        tx_hash: key_str.replace("msgIbcTransfer_", ""),
+                    let block_number = key_parts[0].parse::<u64>().unwrap();
+                    let api_response = ApiResponse {
+                        block_number,
+                        tx_hash: key_parts[2].to_string(),
                         data: serde_json::to_value(&msg_ibc_transfer).unwrap(),
-                    })
+                    };
+                    
+                    response_data.entry(block_number).or_insert(Vec::new()).push(api_response);
                 }
             }
             Err(err) => {
-                eprintln!("RocksDB iterator error: {}", err);
+                error!("RocksDB iterator error: {}", err);
             }
         }
     }
-    response_data.sort_by(|a, b| a.tx_hash.cmp(&b.tx_hash));
+
+    // Converting the HashMap to a Vec and sorting it by block number
+    let mut response_data: Vec<_> = response_data.into_iter().collect();
+    response_data.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // Convert Vec of tuples into Vec of BlockTransactions
+    let response_data: Vec<_> = response_data.into_iter().map(|(block_number, transactions)| {
+        BlockTransactions {
+            block_number,
+            transactions,
+        }
+    }).collect();
+
     HttpResponse::Ok().json(response_data)
 }
+
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

@@ -2,7 +2,7 @@ use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
 use actix_rt::System;
 use cosmos_sdk_proto_althea::{
     cosmos::tx::v1beta1::{TxBody, TxRaw},
-    ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height},
+    ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height}
 };
 use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
@@ -83,6 +83,7 @@ pub struct CustomCoin {
 pub struct ApiResponse {
     pub tx_hash: String,
     pub data: serde_json::Value,
+    pub block_number: u64
 }
 
 impl From<&MsgSendToEth> for CustomMsgSendToEth {
@@ -214,7 +215,9 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
         for block in blocks.into_iter() {
             let block = block.unwrap();
-
+            // Get the block number
+            let block_number = block.header.unwrap().height;
+            info!("Processing block number: {}", block_number);
             // tx fetching
             for tx in block.data.unwrap().txs {
                 let raw_tx_any = prost_types::Any {
@@ -248,7 +251,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_send_to_eth) = msg_send_to_eth {
                             let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
-                            let key = format!("msgSendToEth_{}", tx_hash);
+                            let key = format!("{:012}:msgSendToEth:{}", block_number, tx_hash);
                             save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
                         }
                     } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
@@ -264,7 +267,7 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
                             let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
-                            let key = format!("msgIbcTransfer_{}", tx_hash);
+                            let key = format!("{:012}:msgIbcTransfer:{}", block_number, tx_hash);
                             save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
                         }
                     }
@@ -426,6 +429,7 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     let futures = futures.into_iter();
 
     let mut buf = Vec::new();
+
     for fut in futures {
         if buf.len() < EXECUTE_SIZE {
             buf.push(fut);
@@ -434,6 +438,7 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
             info!(
                 "Completed batch of {} blocks",
                 BATCH_SIZE * EXECUTE_SIZE as u64
+
             );
             buf = Vec::new();
         }
