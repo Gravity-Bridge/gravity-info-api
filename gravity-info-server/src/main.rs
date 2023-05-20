@@ -288,26 +288,28 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
                     let amount = msg_send_to_eth.amount;
 
-                    if timestamp > (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(ONE_DAY)).unwrap()).timestamp() {
-                        // Within the 1-day time frame
+                    if timestamp < (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(ONE_DAY)).unwrap()).timestamp() {
+                        // 1-day time frame
                         for custom_coin in amount.iter() {
                             let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
                             let denom = custom_coin.denom.clone();
                             info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
                             *totals_1day.entry(denom).or_default() += decimal_value;
+                            info!("{:?}", totals_1day);
                         }
                     }
-                    if timestamp > (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(SEVEN_DAYS)).unwrap()).timestamp() {
-                        // Within the 7-day time frame
+                    if timestamp < (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(SEVEN_DAYS)).unwrap()).timestamp() {
+                        // 7-day time frame
                         for custom_coin in amount.iter() {
                             let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
                             let denom = custom_coin.denom.clone();
                             info!("Processing CustomCoin: denom={}, amount={}", denom, custom_coin.amount);
                             *totals_7days.entry(denom).or_default() += decimal_value;
+                            println!("{:?}", totals_1day)
                         }
                     }
-                    if timestamp > (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(THIRTY_DAYS)).unwrap()).timestamp() {
-                        // Within the 30-day time frame
+                    if timestamp < (Utc::now() - chrono::Duration::from_std(std::time::Duration::from_secs(THIRTY_DAYS)).unwrap()).timestamp() {
+                        // 30-day time frame
                         for custom_coin in amount.iter() {
                             let decimal_value = custom_coin.amount.parse::<u128>().unwrap();
                             let denom = custom_coin.denom.clone();
