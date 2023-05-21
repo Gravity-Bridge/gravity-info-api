@@ -17,12 +17,13 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 const PORT: u16 = 9000;
 
 use crate::gravity_info::get_erc20_metadata;
-use crate::transactions::CustomCoin;
 use crate::total_suppy::get_supply_info;
+use crate::transactions::CustomCoin;
 use crate::volume::get_volume_info;
 use crate::{gravity_info::get_gravity_info, tls::*};
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use chrono::{DateTime, Datelike, Local, NaiveDateTime, Utc};
 use env_logger::Env;
 use gravity_info::{blockchain_info_thread, get_eth_info};
 use log::{error, info};
@@ -30,12 +31,11 @@ use rocksdb::Options;
 use rocksdb::DB;
 use rustls::ServerConfig;
 use serde::Serialize;
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 use total_suppy::chain_total_supply_thread;
 use transactions::{transaction_info_thread, ApiResponse, CustomMsgSendToEth, CustomMsgTransfer};
 use volume::bridge_volume_thread;
-use chrono::{DateTime, Local, NaiveDateTime, Utc, Datelike};
 
 #[derive(Debug, Serialize)]
 struct TimeFrameData {
@@ -56,8 +56,7 @@ struct BlockTransactions {
     formatted_date: String,
 }
 
-type BlockData = (String, Vec<ApiResponse>); 
-
+type BlockData = (String, Vec<ApiResponse>);
 
 #[get("/total_supply")]
 async fn get_total_supply() -> impl Responder {
@@ -144,26 +143,38 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
                     let msg_send_to_eth: CustomMsgSendToEth =
                         serde_json::from_slice(&value).unwrap();
                     let block_number = key_parts[0].parse::<u64>().unwrap();
+
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
-                    
-                    // Convert timestamp to DateTime
-                    let datetime_utc = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp, 0), Utc);
-                    
-                    // Convert DateTime to local time zone
+
+                    // Convert timestamp to Option<NaiveDateTime>
+                    let naive_opt = NaiveDateTime::from_timestamp_opt(timestamp, 0);
+
+                    let mut _datetime_utc: Option<DateTime<Utc>> = None;
+
+                    if let Some(naive_datetime) = naive_opt {
+                        // Convert Option<NaiveDateTime> to DateTime
+                        _datetime_utc = Some(DateTime::<Utc>::from_utc(naive_datetime, Utc));
+                    } else {
+                        error!("Invalid timestamp: {}", timestamp);
+                        continue; // skip this iteration if timestamp is invalid
+                    }
+
+                    let datetime_utc = _datetime_utc.unwrap(); // we can safely unwrap because of the `continue` above
+
                     let datetime_local: DateTime<Local> = datetime_utc.into();
-                    
+
                     // Extract month, day, and year
                     let month = datetime_local.month();
                     let day = datetime_local.day();
                     let year = datetime_local.year();
-                    
+
                     // Format the date string
                     let formatted_date = format!("{:02}-{:02}-{}", month, day, year);
                     let api_response = ApiResponse {
                         tx_hash: key_parts[3].to_string(),
                         data: serde_json::to_value(&msg_send_to_eth).unwrap(),
                     };
-                    
+
                     response_data
                         .entry(block_number)
                         .or_insert((formatted_date, Vec::new()))
@@ -184,13 +195,13 @@ async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> impl Re
     // Convert Vec of tuples into Vec of BlockTransactions
     let response_data: Vec<_> = response_data
         .into_iter()
-        .map(|(block_number, (formatted_date, transactions))| {
-            BlockTransactions {
+        .map(
+            |(block_number, (formatted_date, transactions))| BlockTransactions {
                 block_number,
                 formatted_date,
                 transactions,
-            }
-        })
+            },
+        )
         .collect();
 
     HttpResponse::Ok().json(response_data)
@@ -211,15 +222,24 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
                     let msg_ibc_transfer: CustomMsgTransfer =
                         serde_json::from_slice(&value).unwrap();
                     let block_number = key_parts[0].parse::<u64>().unwrap();
+
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
 
-                    // Convert timestamp to DateTime
-                    let datetime_utc = DateTime::<Utc>::from_utc(
-                        NaiveDateTime::from_timestamp(timestamp, 0),
-                        Utc,
-                    );
+                    // Convert timestamp to Option<NaiveDateTime>
+                    let naive_opt = NaiveDateTime::from_timestamp_opt(timestamp, 0);
 
-                    // Convert DateTime to local time zone
+                    let mut _datetime_utc: Option<DateTime<Utc>> = None;
+
+                    if let Some(naive_datetime) = naive_opt {
+                        // Convert Option<NaiveDateTime> to DateTime
+                        _datetime_utc = Some(DateTime::<Utc>::from_utc(naive_datetime, Utc));
+                    } else {
+                        error!("Invalid timestamp: {}", timestamp);
+                        continue; // skip this iteration if timestamp is invalid
+                    }
+
+                    let datetime_utc = _datetime_utc.unwrap(); // we can safely unwrap because of the `continue` above
+
                     let datetime_local: DateTime<Local> = datetime_utc.into();
 
                     // Extract month, day, and year
@@ -254,13 +274,13 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
     // Convert Vec of tuples into Vec of BlockTransactions
     let response_data: Vec<_> = response_data
         .into_iter()
-        .map(|(block_number, (formatted_date, transactions))| {
-            BlockTransactions {
+        .map(
+            |(block_number, (formatted_date, transactions))| BlockTransactions {
                 block_number,
                 formatted_date,
                 transactions,
-            }
-        })
+            },
+        )
         .collect();
 
     HttpResponse::Ok().json(response_data)
@@ -272,6 +292,7 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
     const ONE_DAY: u64 = 24 * 60 * 60;
     const SEVEN_DAYS: u64 = 7 * ONE_DAY;
     const THIRTY_DAYS: u64 = 30 * ONE_DAY;
+    const ONE_YEAR: u64 = 365 * ONE_DAY;
 
     let mut bridge_fee_totals_1day: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_1day: HashMap<String, u128> = HashMap::new();
@@ -281,6 +302,9 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
 
     let mut bridge_fee_totals_30days: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_30days: HashMap<String, u128> = HashMap::new();
+
+    let mut bridge_fee_totals_1year: HashMap<String, u128> = HashMap::new();
+    let mut chain_fee_totals_1year: HashMap<String, u128> = HashMap::new();
 
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
@@ -298,20 +322,41 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
                     let chain_fee = msg_send_to_eth.chain_fee.clone();
 
                     // process data
-                    if timestamp <= (Utc::now() - chrono::Duration::seconds(ONE_DAY as i64)).timestamp() {
+                    if timestamp
+                        >= (Utc::now() - chrono::Duration::seconds(ONE_DAY as i64)).timestamp()
+                    {
                         // 1-day time frame
-                        bridge_fee_totals_1day = process_fee(bridge_fee.clone(), &bridge_fee_totals_1day);
-                        chain_fee_totals_1day = process_fee(chain_fee.clone(), &chain_fee_totals_1day);
-                    } 
-                    if timestamp <= (Utc::now() - chrono::Duration::seconds(SEVEN_DAYS as i64)).timestamp() {
+                        bridge_fee_totals_1day =
+                            process_fee(bridge_fee.clone(), &bridge_fee_totals_1day);
+                        chain_fee_totals_1day =
+                            process_fee(chain_fee.clone(), &chain_fee_totals_1day);
+                    }
+                    if timestamp
+                        >= (Utc::now() - chrono::Duration::seconds(SEVEN_DAYS as i64)).timestamp()
+                    {
                         // 7-day time frame
-                        bridge_fee_totals_7days = process_fee(bridge_fee.clone(), &bridge_fee_totals_7days);
-                        chain_fee_totals_7days = process_fee(chain_fee.clone(), &chain_fee_totals_7days);
-                    } 
-                    if timestamp <= (Utc::now() - chrono::Duration::seconds(THIRTY_DAYS as i64)).timestamp() {
+                        bridge_fee_totals_7days =
+                            process_fee(bridge_fee.clone(), &bridge_fee_totals_7days);
+                        chain_fee_totals_7days =
+                            process_fee(chain_fee.clone(), &chain_fee_totals_7days);
+                    }
+                    if timestamp
+                        >= (Utc::now() - chrono::Duration::seconds(THIRTY_DAYS as i64)).timestamp()
+                    {
                         // 30-day time frame
-                        bridge_fee_totals_30days = process_fee(bridge_fee, &bridge_fee_totals_30days);
-                        chain_fee_totals_30days = process_fee(chain_fee, &chain_fee_totals_30days);
+                        bridge_fee_totals_30days =
+                            process_fee(bridge_fee.clone(), &bridge_fee_totals_30days);
+                        chain_fee_totals_30days =
+                            process_fee(chain_fee.clone(), &chain_fee_totals_30days);
+                    }
+                    if timestamp
+                        >= (Utc::now() - chrono::Duration::seconds(ONE_YEAR as i64)).timestamp()
+                    {
+                        // 1-year time frame
+                        bridge_fee_totals_1year =
+                            process_fee(bridge_fee.clone(), &bridge_fee_totals_1year);
+                        chain_fee_totals_1year =
+                            process_fee(chain_fee.clone(), &chain_fee_totals_1year);
                     }
                 }
             }
@@ -338,6 +383,11 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
                 bridge_fee_totals: bridge_fee_totals_30days,
                 chain_fee_totals: chain_fee_totals_30days,
             },
+            TimeFrame {
+                period: "1 year".to_string(),
+                bridge_fee_totals: bridge_fee_totals_1year,
+                chain_fee_totals: chain_fee_totals_1year,
+            },
         ],
     };
 
@@ -353,7 +403,6 @@ fn process_fee(fee: Vec<CustomCoin>, totals: &HashMap<String, u128>) -> HashMap<
     }
     new_totals
 }
-
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

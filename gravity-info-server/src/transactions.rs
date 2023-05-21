@@ -2,7 +2,7 @@ use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
 use actix_rt::System;
 use cosmos_sdk_proto_althea::{
     cosmos::tx::v1beta1::{TxBody, TxRaw},
-    ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height}
+    ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height},
 };
 use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
@@ -42,9 +42,9 @@ pub struct Counters {
 pub struct CustomMsgSendToEth {
     sender: String,
     eth_dest: String,
-   pub amount: Vec<CustomCoin>,
-   pub bridge_fee: Vec<CustomCoin>,
-   pub chain_fee: Vec<CustomCoin>,
+    pub amount: Vec<CustomCoin>,
+    pub bridge_fee: Vec<CustomCoin>,
+    pub chain_fee: Vec<CustomCoin>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -250,8 +250,18 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_send_to_eth) = msg_send_to_eth {
                             let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
-                            let timestamp = block.header.as_ref().unwrap().time.as_ref().unwrap().seconds;
-                            let key = format!("{:012}:msgSendToEth:{}:{}", block_number, timestamp, tx_hash);
+                            let timestamp = block
+                                .header
+                                .as_ref()
+                                .unwrap()
+                                .time
+                                .as_ref()
+                                .unwrap()
+                                .seconds;
+                            let key = format!(
+                                "{:012}:msgSendToEth:{}:{}",
+                                block_number, timestamp, tx_hash
+                            );
                             save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
                         }
                     } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
@@ -267,8 +277,18 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
                             let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
-                            let timestamp = block.header.as_ref().unwrap().time.as_ref().unwrap().seconds;
-                            let key = format!("{:012}:msgIbcTransfer:{}:{}", block_number, timestamp, tx_hash);
+                            let timestamp = block
+                                .header
+                                .as_ref()
+                                .unwrap()
+                                .time
+                                .as_ref()
+                                .unwrap()
+                                .seconds;
+                            let key = format!(
+                                "{:012}:msgIbcTransfer:{}:{}",
+                                block_number, timestamp, tx_hash
+                            );
                             save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
                         }
                     }
@@ -366,30 +386,28 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
                 latest_block = Some(block_height);
                 break;
             }
-            _ => {
-                match contact.get_chain_status().await {
-                    Ok(chain_status) => {
-                        if let deep_space::client::ChainStatus::Moving { block_height } = chain_status {
-                            latest_block = Some(block_height);
-                            break;
-                        }
-                        current_status = chain_status;
+            _ => match contact.get_chain_status().await {
+                Ok(chain_status) => {
+                    if let deep_space::client::ChainStatus::Moving { block_height } = chain_status {
+                        latest_block = Some(block_height);
+                        break;
                     }
-                    Err(e) => {
-                        retries += 1;
-                        if retries >= MAX_RETRIES {
-                            error!("Failed to get chain status: {:?}", e);
-                            return Err(Box::new(e));
-                        } else {
-                            error!("Failed to get chain status: {:?}, retrying", e);
-                            tokio::time::sleep(Duration::from_secs(1)).await;
-                        }
+                    current_status = chain_status;
+                }
+                Err(e) => {
+                    retries += 1;
+                    if retries >= MAX_RETRIES {
+                        error!("Failed to get chain status: {:?}", e);
+                        return Err(Box::new(e));
+                    } else {
+                        error!("Failed to get chain status: {:?}, retrying", e);
+                        tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
-            }
+            },
         }
     }
-    
+
     let latest_block = latest_block.expect("Node is not synced or not running");
 
     // now we find the earliest block this node has via binary search, we could just read it from
@@ -438,7 +456,6 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
             info!(
                 "Completed batch of {} blocks",
                 BATCH_SIZE * EXECUTE_SIZE as u64
-
             );
             buf = Vec::new();
         }
@@ -495,4 +512,3 @@ fn load_last_download_block(db: &DB) -> Option<u64> {
     let res = db.get(LAST_DOWNLOAD_BLOCK_KEY.as_bytes()).unwrap();
     res.map(|bytes| String::from_utf8_lossy(&bytes).parse::<u64>().unwrap())
 }
-
