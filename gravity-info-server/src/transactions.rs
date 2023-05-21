@@ -318,7 +318,6 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
     }
 }
 
-
 pub fn transaction_info_thread(db: Arc<DB>) {
     info!("Starting transaction info thread");
 
