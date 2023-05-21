@@ -99,7 +99,7 @@ pub fn blockchain_info_thread() {
         runner.block_on(async move {
             let web30 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
             let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
-            
+
             let mut grpc_client = loop {
                 match GravityQueryClient::connect(GRAVITY_NODE_GRPC).await {
                     Ok(client) => break client,
