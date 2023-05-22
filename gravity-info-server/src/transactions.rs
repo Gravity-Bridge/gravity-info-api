@@ -310,7 +310,6 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
         }
         let mut c = COUNTER.write().unwrap();
         c.blocks += blocks_len;
-        println!("block-counter {}", blocks_len);
         c.transactions += tx_counter;
         c.msgs += msg_counter;
         c.ibc_msgs += ibc_transfer_counter;
@@ -347,6 +346,7 @@ pub fn transaction_info_thread(db: Arc<DB>) {
                     }
                 }
             }
+            tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await; // Sleep for 24 hours
         });
     });
 }
