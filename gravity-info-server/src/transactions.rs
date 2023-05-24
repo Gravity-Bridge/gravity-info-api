@@ -42,9 +42,9 @@ pub struct Counters {
 pub struct CustomMsgSendToEth {
     sender: String,
     eth_dest: String,
-    amount: Vec<CustomCoin>,
-    bridge_fee: Vec<CustomCoin>,
-    chain_fee: Vec<CustomCoin>,
+    pub amount: Vec<CustomCoin>,
+    pub bridge_fee: Vec<CustomCoin>,
+    pub chain_fee: Vec<CustomCoin>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,10 +73,10 @@ impl From<&Height> for CustomHeight {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CustomCoin {
-    denom: String,
-    amount: String,
+    pub denom: String,
+    pub amount: String,
 }
 
 #[derive(Serialize)]
@@ -214,6 +214,8 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
         for block in blocks.into_iter() {
             let block = block.unwrap();
+            // Get the block number
+            let block_number = block.header.as_ref().unwrap().height;
 
             // tx fetching
             for tx in block.data.unwrap().txs {
@@ -248,7 +250,18 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_send_to_eth) = msg_send_to_eth {
                             let custom_msg_send_to_eth = CustomMsgSendToEth::from(&msg_send_to_eth);
-                            let key = format!("msgSendToEth_{}", tx_hash);
+                            let timestamp = block
+                                .header
+                                .as_ref()
+                                .unwrap()
+                                .time
+                                .as_ref()
+                                .unwrap()
+                                .seconds;
+                            let key = format!(
+                                "{:012}:msgSendToEth:{}:{}",
+                                block_number, timestamp, tx_hash
+                            );
                             save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
                         }
                     } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
@@ -264,7 +277,18 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                         if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
                             let custom_ibc_transfer = CustomMsgTransfer::from(&msg_ibc_transfer);
-                            let key = format!("msgIbcTransfer_{}", tx_hash);
+                            let timestamp = block
+                                .header
+                                .as_ref()
+                                .unwrap()
+                                .time
+                                .as_ref()
+                                .unwrap()
+                                .seconds;
+                            let key = format!(
+                                "{:012}:msgIbcTransfer:{}:{}",
+                                block_number, timestamp, tx_hash
+                            );
                             save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
                         }
                     }
@@ -280,7 +304,6 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                 }
             }
             current_start = (last_block_height as u64) + 1;
-
             if current_start > end {
                 break;
             }
@@ -323,6 +346,7 @@ pub fn transaction_info_thread(db: Arc<DB>) {
                     }
                 }
             }
+            tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await; // Sleep for 24 hours
         });
     });
 }
@@ -424,6 +448,7 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     let futures = futures.into_iter();
 
     let mut buf = Vec::new();
+
     for fut in futures {
         if buf.len() < EXECUTE_SIZE {
             buf.push(fut);
