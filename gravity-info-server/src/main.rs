@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+pub mod batch_relaying;
 pub mod gravity_info;
 pub mod tls;
 pub mod total_suppy;
@@ -16,6 +17,7 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 };
 const PORT: u16 = 9000;
 
+use crate::batch_relaying::generate_raw_batch_tx;
 use crate::gravity_info::get_erc20_metadata;
 use crate::total_suppy::get_supply_info;
 use crate::transactions::CustomCoin;
@@ -57,6 +59,14 @@ struct BlockTransactions {
 }
 
 type BlockData = (String, Vec<ApiResponse>);
+
+/// This is a helper api endpoint which generates an unsigned tx for a transaction batch sent from a given address
+/// and returns it to the caller.
+#[get("/batch_tx/{batch_nonce}")]
+async fn generate_batch_tx(data: web::Path<(u64,)>) -> impl Responder {
+    let nonce = data.into_inner().0;
+    generate_raw_batch_tx(nonce).await
+}
 
 #[get("/total_supply")]
 async fn get_total_supply() -> impl Responder {
@@ -440,6 +450,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_all_msg_send_to_eth_transactions)
             .service(get_all_msg_ibc_transfer_transactions)
             .service(get_send_to_eth_transaction_totals)
+            .service(generate_batch_tx)
     });
 
     let server = if SSL {

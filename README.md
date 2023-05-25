@@ -428,3 +428,30 @@ Provides Gravity Bridge transaction info. Currently two message types are suppor
 `curl https://info.gravitychain.io:9000/transactions/ibc_transfer`
 
 ---
+
+### /batch_tx/{batch_nonce}
+
+Takes the url encoded batch nonce as a request value and builds the required ETH transaction payload to relay this batch.
+Note the return value of this endpoint is the 'data' field of the Ethereum transaction. The rest of the transaction is up
+to your application to fill out and send.
+
+**MsgSendToEth** is the message type used to bridge assets from the Cosmos side to Ethereum.
+- URL: `https://info.gravitychain.io:9000/batch_tx/{batch_nonce}`
+- Method: `GET`
+- URL Params: `None`
+- Data Params: `None`
+- Success Response:
+  - Code: 200 OK
+  - Contents:
+
+```
+{
+  [82,93...]
+}
+```
+
+- Error Response: `500 Server Error`
+
+- Sample Call:
+
+`curl https://info.gravitychain.io:9000/batch_tx/123456`

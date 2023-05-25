@@ -10,6 +10,7 @@ ethereum_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", re
 cosmos_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="ea35ec51aa921f60bb0911bd5482f12a438241e0"}
 gravity_utils = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="ea35ec51aa921f60bb0911bd5482f12a438241e0"}
 gravity_proto = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="ea35ec51aa921f60bb0911bd5482f12a438241e0"}
+relayer = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="ea35ec51aa921f60bb0911bd5482f12a438241e0"}
 deep_space = "2"
 web30 = "0.22"
 clarity = "0.5"
