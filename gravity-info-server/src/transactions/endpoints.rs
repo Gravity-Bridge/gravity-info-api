@@ -21,6 +21,7 @@ struct TimeFrameData {
 #[derive(Debug, Serialize)]
 struct TimeFrame {
     period: String,
+    amount_totals: HashMap<String, u128>,
     bridge_fee_totals: HashMap<String, u128>,
     chain_fee_totals: HashMap<String, u128>,
 }
@@ -207,18 +208,23 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
     const THIRTY_DAYS: u64 = 30 * ONE_DAY;
     const ONE_YEAR: u64 = 365 * ONE_DAY;
 
+    let mut amount_totals_1day: HashMap<String, u128> = HashMap::new();
     let mut bridge_fee_totals_1day: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_1day: HashMap<String, u128> = HashMap::new();
 
+    let mut amount_totals_7days: HashMap<String, u128> = HashMap::new();
     let mut bridge_fee_totals_7days: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_7days: HashMap<String, u128> = HashMap::new();
 
+    let mut amount_totals_30days: HashMap<String, u128> = HashMap::new();
     let mut bridge_fee_totals_30days: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_30days: HashMap<String, u128> = HashMap::new();
 
+    let mut amount_totals_1year: HashMap<String, u128> = HashMap::new();
     let mut bridge_fee_totals_1year: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_1year: HashMap<String, u128> = HashMap::new();
 
+    let mut amount_totals_alltime: HashMap<String, u128> = HashMap::new();
     let mut bridge_fee_totals_alltime: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_alltime: HashMap<String, u128> = HashMap::new();
 
@@ -234,9 +240,11 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
                         serde_json::from_slice(&value).unwrap();
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
 
+                    let amount = msg_send_to_eth.amount.clone();
                     let bridge_fee = msg_send_to_eth.bridge_fee.clone();
                     let chain_fee = msg_send_to_eth.chain_fee.clone();
 
+                    amount_totals_alltime = process_fee(amount.clone(), &amount_totals_alltime);
                     bridge_fee_totals_alltime =
                         process_fee(bridge_fee.clone(), &bridge_fee_totals_alltime);
                     chain_fee_totals_alltime =
@@ -247,6 +255,7 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
                         >= (Utc::now() - chrono::Duration::seconds(ONE_DAY as i64)).timestamp()
                     {
                         // 1-day time frame
+                        amount_totals_1day = process_fee(amount.clone(), &amount_totals_1day);
                         bridge_fee_totals_1day =
                             process_fee(bridge_fee.clone(), &bridge_fee_totals_1day);
                         chain_fee_totals_1day =
@@ -256,6 +265,7 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
                         >= (Utc::now() - chrono::Duration::seconds(SEVEN_DAYS as i64)).timestamp()
                     {
                         // 7-day time frame
+                        amount_totals_7days = process_fee(amount.clone(), &amount_totals_7days);
                         bridge_fee_totals_7days =
                             process_fee(bridge_fee.clone(), &bridge_fee_totals_7days);
                         chain_fee_totals_7days =
@@ -265,6 +275,7 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
                         >= (Utc::now() - chrono::Duration::seconds(THIRTY_DAYS as i64)).timestamp()
                     {
                         // 30-day time frame
+                        amount_totals_30days = process_fee(amount.clone(), &amount_totals_30days);
                         bridge_fee_totals_30days =
                             process_fee(bridge_fee.clone(), &bridge_fee_totals_30days);
                         chain_fee_totals_30days =
@@ -274,6 +285,7 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
                         >= (Utc::now() - chrono::Duration::seconds(ONE_YEAR as i64)).timestamp()
                     {
                         // 1-year time frame
+                        amount_totals_1year = process_fee(amount.clone(), &amount_totals_1year);
                         bridge_fee_totals_1year =
                             process_fee(bridge_fee.clone(), &bridge_fee_totals_1year);
                         chain_fee_totals_1year =
@@ -291,26 +303,31 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
         time_frames: vec![
             TimeFrame {
                 period: "1 day".to_string(),
+                amount_totals: amount_totals_1day,
                 bridge_fee_totals: bridge_fee_totals_1day,
                 chain_fee_totals: chain_fee_totals_1day,
             },
             TimeFrame {
                 period: "7 days".to_string(),
+                amount_totals: amount_totals_7days,
                 bridge_fee_totals: bridge_fee_totals_7days,
                 chain_fee_totals: chain_fee_totals_7days,
             },
             TimeFrame {
                 period: "30 days".to_string(),
+                amount_totals: amount_totals_30days,
                 bridge_fee_totals: bridge_fee_totals_30days,
                 chain_fee_totals: chain_fee_totals_30days,
             },
             TimeFrame {
                 period: "1 year".to_string(),
+                amount_totals: amount_totals_1year,
                 bridge_fee_totals: bridge_fee_totals_1year,
                 chain_fee_totals: chain_fee_totals_1year,
             },
             TimeFrame {
                 period: "All time".to_string(),
+                amount_totals: amount_totals_alltime,
                 bridge_fee_totals: bridge_fee_totals_alltime,
                 chain_fee_totals: chain_fee_totals_alltime,
             },
