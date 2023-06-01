@@ -219,6 +219,9 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
     let mut bridge_fee_totals_1year: HashMap<String, u128> = HashMap::new();
     let mut chain_fee_totals_1year: HashMap<String, u128> = HashMap::new();
 
+    let mut bridge_fee_totals_alltime: HashMap<String, u128> = HashMap::new();
+    let mut chain_fee_totals_alltime: HashMap<String, u128> = HashMap::new();
+
     let iterator = db.iterator(rocksdb::IteratorMode::Start);
 
     for item in iterator {
@@ -233,6 +236,11 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
 
                     let bridge_fee = msg_send_to_eth.bridge_fee.clone();
                     let chain_fee = msg_send_to_eth.chain_fee.clone();
+
+                    bridge_fee_totals_alltime =
+                        process_fee(bridge_fee.clone(), &bridge_fee_totals_alltime);
+                    chain_fee_totals_alltime =
+                        process_fee(chain_fee.clone(), &chain_fee_totals_alltime);
 
                     // process data
                     if timestamp
@@ -300,6 +308,11 @@ pub async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl 
                 period: "1 year".to_string(),
                 bridge_fee_totals: bridge_fee_totals_1year,
                 chain_fee_totals: chain_fee_totals_1year,
+            },
+            TimeFrame {
+                period: "All time".to_string(),
+                bridge_fee_totals: bridge_fee_totals_alltime,
+                chain_fee_totals: chain_fee_totals_alltime,
             },
         ],
     };
