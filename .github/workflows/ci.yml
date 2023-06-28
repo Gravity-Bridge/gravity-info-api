@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "gravity-info-server/"
       - name: Check rust
         run: cd gravity-info-server && cargo check --all
   test-gravity-info-server:
@@ -22,7 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "gravity-info-server/"
       - name: Run gravity-info-server tests
         run: cd gravity-info-server && cargo test --verbose --all
   rustfmt-gravity-info-server:
@@ -37,7 +41,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "gravity-info-server/"
       - name: Check for Clippy lints
         run: cd gravity-info-server && rustup component add clippy && cargo clippy --all --all-targets --all-features -- -D warnings
 

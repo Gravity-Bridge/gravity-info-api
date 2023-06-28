@@ -6,6 +6,8 @@ This server computes and displays info that would be otherwise difficult to acce
 
 Issues and pull requests for new endpoints or information formats are welcome.
 
+The repo auto-deploys the most recent commit in main to https://info.gravitychain.io
+
 ## API Docs
 
 ### /bridge_volume

@@ -1,0 +1,37 @@
+on:
+  push:
+    branches: [main]
+
+name: Automated deploy
+
+env:
+  CARGO_TERM_COLOR: always
+  ANSIBLE_HOST_KEY_CHECKING: False
+  SSH_KEY: ${{ secrets.SSH_KEY }}
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy Gravity Info Server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "gravity-info-server/"
+      - uses: jpribyl/action-docker-layer-caching@v0.1.1
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.x"
+      - name: Install Python dependencies.
+        run: pip3 install ansible github3.py certbot certbot-dns-cloudflare
+      - name: Install cross
+        run: cargo install cross
+      - name: Setup SSH Connectivity
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+      - name: Prep node environments
+        run: cd gravity-info-dash; yarn;
+      - name: Build and deploy
+        run: bash scripts/build-and-deploy.sh
