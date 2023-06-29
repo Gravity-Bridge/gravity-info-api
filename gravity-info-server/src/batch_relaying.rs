@@ -1,4 +1,5 @@
 use actix_web::{HttpResponse, Responder};
+use clarity::utils::bytes_to_hex_str;
 use clarity::{Address as EthAddress, Uint256};
 use cosmos_gravity::query::{
     get_gravity_params, get_latest_transaction_batches, get_transaction_batch_signatures,
@@ -92,7 +93,7 @@ pub async fn generate_raw_batch_tx(batch_nonce: u64) -> impl Responder {
     }
 
     match encode_batch_payload(current_valset, &target_batch, &sigs, params.gravity_id) {
-        Ok(payload) => HttpResponse::Ok().json(payload),
+        Ok(payload) => HttpResponse::Ok().json(bytes_to_hex_str(&payload)),
         Err(_) => HttpResponse::InternalServerError().json("Failed to encode payload!"),
     }
 }
