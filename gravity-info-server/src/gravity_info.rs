@@ -31,7 +31,7 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 pub const GRAVITY_NODE_GRPC: &str = "http://gravitychain.io:9090";
 //pub const GRAVITY_NODE_GRPC: &str = "http://chainripper-2.althea.net:9090";
 pub const GRAVITY_PREFIX: &str = "gravity";
-pub const ETH_NODE_RPC: &str = "https://eth.althea.net";
+pub const ETH_NODE_RPC: &str = "https://eth.chandrastation.com";
 pub const FINALITY_DELAY: u128 = 100;
 /// number of seconds per eth block
 pub const ETH_BLOCK_TIME: u128 = 12;
