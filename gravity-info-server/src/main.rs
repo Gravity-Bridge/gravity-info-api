@@ -28,7 +28,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 use env_logger::Env;
 use gravity_info::{blockchain_info_thread, get_eth_info};
-use log::{info, error};
+use log::{error, info};
 use rocksdb::Options;
 use rocksdb::DB;
 use rustls::ServerConfig;
@@ -68,7 +68,8 @@ async fn get_total_liquid_supply() -> impl Responder {
                 HttpResponse::Ok().json(v.total_liquid_supply)
             } else {
                 error!("Invalid supply data, got total liquid supply of {:#?}", v);
-                HttpResponse::InternalServerError().json("Invalid supply data, Gravity fullnode is stale")
+                HttpResponse::InternalServerError()
+                    .json("Invalid supply data, Gravity fullnode is stale")
             }
         }
         None => HttpResponse::InternalServerError()
@@ -85,7 +86,8 @@ async fn get_all_supply_info() -> impl Responder {
                 HttpResponse::Ok().json(v)
             } else {
                 error!("Invalid supply data, got total liquid supply of {:#?}", v);
-                HttpResponse::InternalServerError().json("Invalid supply data, Gravity fullnode is stale")
+                HttpResponse::InternalServerError()
+                    .json("Invalid supply data, Gravity fullnode is stale")
             }
         }
         None => HttpResponse::InternalServerError()

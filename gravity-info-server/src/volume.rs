@@ -69,26 +69,26 @@ pub fn bridge_volume_thread() {
                         return;
                     }
                 };
-                let starting_block_daily = latest_block.clone() - BLOCKS_PER_DAY.into();
-                let starting_block_weekly = latest_block.clone() - (BLOCKS_PER_DAY * 7).into();
-                let starting_block_monthly = latest_block.clone() - (BLOCKS_PER_DAY * 30).into();
+                let starting_block_daily = latest_block - BLOCKS_PER_DAY.into();
+                let starting_block_weekly = latest_block - (BLOCKS_PER_DAY * 7).into();
+                let starting_block_monthly = latest_block - (BLOCKS_PER_DAY * 30).into();
                 let daily_volume = get_bridge_volume_for_range(
                     starting_block_daily,
-                    latest_block.clone(),
+                    latest_block,
                     &metadata,
                     gravity_contract_address,
                     &web3,
                 );
                 let weekly_volume = get_bridge_volume_for_range(
                     starting_block_weekly,
-                    latest_block.clone(),
+                    latest_block,
                     &metadata,
                     gravity_contract_address,
                     &web3,
                 );
                 let monthly_volume = get_bridge_volume_for_range(
                     starting_block_monthly,
-                    latest_block.clone(),
+                    latest_block,
                     &metadata,
                     gravity_contract_address,
                     &web3,
@@ -152,8 +152,8 @@ async fn get_bridge_volume_for_range(
     let mut futs = Vec::new();
     for token in metadata {
         let vol = get_gravity_volume_for_token(
-            starting_block.clone(),
-            ending_block.clone(),
+            starting_block,
+            ending_block,
             token,
             gravity_contract_address,
             web3,
@@ -183,7 +183,7 @@ async fn get_gravity_volume_for_token(
     gravity_contract_address: EthAddress,
     web3: &Web3,
 ) -> Result<BridgeVolume, GravityError> {
-    if let Some(exchange_rate) = erc20.exchange_rate.clone() {
+    if let Some(exchange_rate) = erc20.exchange_rate {
         let mut volume: f64 = 0u8.into();
         let mut inflow: f64 = 0u8.into();
         let mut outflow: f64 = 0u8.into();
@@ -195,11 +195,11 @@ async fn get_gravity_volume_for_token(
         // these contracts prodcue
         let blocks_to_search: Uint256 = 500u16.into();
         let mut current_block = starting_block;
-        while current_block.clone() + blocks_to_search.clone() < ending_block {
+        while current_block + blocks_to_search < ending_block {
             let logs = web3
                 .check_for_events(
-                    current_block.clone(),
-                    Some(current_block.clone() + blocks_to_search.clone()),
+                    current_block,
+                    Some(current_block + blocks_to_search),
                     vec![erc20.address],
                     vec!["Transfer(address,address,uint256)"],
                 )
@@ -210,11 +210,11 @@ async fn get_gravity_volume_for_token(
             inflow += i;
             outflow += o;
 
-            current_block += blocks_to_search.clone();
+            current_block += blocks_to_search;
         }
         let logs = web3
             .check_for_events(
-                current_block.clone(),
+                current_block,
                 Some(ending_block),
                 vec![erc20.address],
                 vec!["Transfer(address,address,uint256)"],

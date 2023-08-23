@@ -6,11 +6,6 @@
 
 use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
 use actix_web::rt::System;
-use deep_space::client::types::AccountType;
-use deep_space::client::PAGE;
-use deep_space::error::CosmosGrpcError;
-use deep_space::{Coin, Contact};
-use futures::future::{join3, join_all};
 use cosmos_sdk_proto_althea::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
 use cosmos_sdk_proto_althea::cosmos::bank::v1beta1::QueryBalanceRequest;
 use cosmos_sdk_proto_althea::cosmos::distribution::v1beta1::query_client::QueryClient as DistQueryClient;
@@ -18,6 +13,11 @@ use cosmos_sdk_proto_althea::cosmos::distribution::v1beta1::QueryDelegationTotal
 use cosmos_sdk_proto_althea::cosmos::staking::v1beta1::query_client::QueryClient as StakingQueryClient;
 use cosmos_sdk_proto_althea::cosmos::staking::v1beta1::QueryDelegatorDelegationsRequest;
 use cosmos_sdk_proto_althea::cosmos::vesting::v1beta1::BaseVestingAccount;
+use deep_space::client::types::AccountType;
+use deep_space::client::PAGE;
+use deep_space::error::CosmosGrpcError;
+use deep_space::{Coin, Contact};
+use futures::future::{join3, join_all};
 use log::{error, info, trace};
 use num256::Uint256;
 use serde::Serialize;
@@ -148,9 +148,9 @@ async fn compute_liquid_supply(
         match user.account {
             // account with no vesting, simple case, all is liquid
             AccountType::ProtoBaseAccount(_) => {
-                total_liquid_balances += user.balance.clone();
-                total_nonvesting_staked += user.total_staked.clone();
-                total_unclaimed_rewards += user.unclaimed_rewards.clone();
+                total_liquid_balances += user.balance;
+                total_nonvesting_staked += user.total_staked;
+                total_unclaimed_rewards += user.unclaimed_rewards;
 
                 total_liquid_supply += user.balance;
                 total_liquid_supply += user.unclaimed_rewards;
@@ -166,8 +166,8 @@ async fn compute_liquid_supply(
                     sum_vesting(base, denom.clone());
                 // obvious stuff requiring no computation
                 total_liquid_supply += user.unclaimed_rewards;
-                total_liquid_supply += total_delegated_free.clone();
-                total_vesting_staked += total_delegated_vesting.clone();
+                total_liquid_supply += total_delegated_free;
+                total_vesting_staked += total_delegated_vesting;
                 total_nonvesting_staked += total_delegated_free;
 
                 // vesting has started
@@ -188,11 +188,10 @@ async fn compute_liquid_supply(
                         }
                     }
                     assert!(total_amount_vested <= original_vesting_amount);
-                    let total_amount_still_vesting =
-                        original_vesting_amount - total_amount_vested.clone();
+                    let total_amount_still_vesting = original_vesting_amount - total_amount_vested;
 
                     total_vested += total_amount_vested;
-                    total_vesting += total_amount_still_vesting.clone();
+                    total_vesting += total_amount_still_vesting;
 
                     assert!(total_amount_still_vesting >= total_delegated_vesting);
                     let vesting_in_balance = total_amount_still_vesting - total_delegated_vesting;
@@ -207,8 +206,7 @@ async fn compute_liquid_supply(
                 // we add to our total
                 else {
                     assert!(original_vesting_amount >= total_delegated_vesting);
-                    let vesting_in_balance =
-                        original_vesting_amount.clone() - total_delegated_vesting;
+                    let vesting_in_balance = original_vesting_amount - total_delegated_vesting;
                     assert!(total_vested > original_vesting_amount);
 
                     total_vested += original_vesting_amount;
@@ -229,10 +227,10 @@ async fn compute_liquid_supply(
                     sum_vesting(base, denom.clone());
 
                 // obvious stuff requiring no computation
-                total_unclaimed_rewards += user.unclaimed_rewards.clone();
+                total_unclaimed_rewards += user.unclaimed_rewards;
                 total_liquid_supply += user.unclaimed_rewards;
-                total_liquid_supply += total_delegated_free.clone();
-                total_vesting_staked += total_delegated_vesting.clone();
+                total_liquid_supply += total_delegated_free;
+                total_vesting_staked += total_delegated_vesting;
                 total_nonvesting_staked += total_delegated_free;
 
                 // vesting has started, since this is continuous we'll do a rough protection
@@ -249,11 +247,10 @@ async fn compute_liquid_supply(
                     let total_amount_vested: Uint256 = (total_amount_vested.ceil() as u128).into();
 
                     assert!(original_vesting_amount > total_amount_vested);
-                    let total_amount_still_vesting =
-                        original_vesting_amount - total_amount_vested.clone();
+                    let total_amount_still_vesting = original_vesting_amount - total_amount_vested;
 
                     total_vested += total_amount_vested;
-                    total_vesting += total_amount_still_vesting.clone();
+                    total_vesting += total_amount_still_vesting;
 
                     // this can happen because the delegated vesting number is only updated on undelegation / rewards withdraw
                     // while our total amount still vesting is pro-rated to find the current amount
@@ -275,14 +272,13 @@ async fn compute_liquid_supply(
                 else {
                     assert!(original_vesting_amount >= total_delegated_vesting);
 
-                    let vesting_in_balance =
-                        original_vesting_amount.clone() - total_delegated_vesting;
+                    let vesting_in_balance = original_vesting_amount - total_delegated_vesting;
 
                     assert!(user.balance >= vesting_in_balance);
 
-                    let liquid = user.balance.clone() - vesting_in_balance.clone();
+                    let liquid = user.balance - vesting_in_balance;
 
-                    total_liquid_balances += liquid.clone();
+                    total_liquid_balances += liquid;
                     total_vesting += original_vesting_amount;
                     total_liquid_supply += liquid;
                 }

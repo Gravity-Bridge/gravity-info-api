@@ -204,7 +204,7 @@ async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, 
         query_sender,
         erc20,
         *USDC_CONTRACT_ADDRESS,
-        one.clone(),
+        one,
         None,
         None,
     );
@@ -315,10 +315,10 @@ impl DepositWithMetadata {
         let finished = if input.block_height < current_final_height {
             true
         } else {
-            current_eth_height.clone() - input.block_height.clone() > FINALITY_DELAY.into()
+            current_eth_height - input.block_height > FINALITY_DELAY.into()
         };
         // height at which Gravity will see this tx
-        let confirm_height = input.block_height.clone() + FINALITY_DELAY.into();
+        let confirm_height = input.block_height + FINALITY_DELAY.into();
         let blocks_until_confirmed: Uint256 = if finished {
             0u8.into()
         } else {
@@ -334,7 +334,7 @@ impl DepositWithMetadata {
                 event_nonce: input.event_nonce,
                 block_height: input.block_height,
                 confirmed: finished,
-                blocks_until_confirmed: blocks_until_confirmed.clone(),
+                blocks_until_confirmed,
                 seconds_until_confirmed: blocks_until_confirmed * ETH_BLOCK_TIME.into(),
             })
         } else {
@@ -393,35 +393,35 @@ async fn query_eth_info(
 ) -> Result<EthInfo, GravityError> {
     let latest_block = web3.eth_block_number().await?;
     let latest_finalized_block = web3.eth_get_finalized_block().await?.number;
-    let starting_block = latest_block.clone() - 7_200u16.into();
+    let starting_block = latest_block - 7_200u16.into();
 
     let deposits = web3.check_for_events(
-        starting_block.clone(),
-        Some(latest_block.clone()),
+        starting_block,
+        Some(latest_block),
         vec![gravity_contract_address],
         vec![SENT_TO_COSMOS_EVENT_SIG],
     );
     let batches = web3.check_for_events(
-        starting_block.clone(),
-        Some(latest_block.clone()),
+        starting_block,
+        Some(latest_block),
         vec![gravity_contract_address],
         vec![TRANSACTION_BATCH_EXECUTED_EVENT_SIG],
     );
     let valsets = web3.check_for_events(
-        starting_block.clone(),
-        Some(latest_block.clone()),
+        starting_block,
+        Some(latest_block),
         vec![gravity_contract_address],
         vec![VALSET_UPDATED_EVENT_SIG],
     );
     let erc20_deployed = web3.check_for_events(
-        starting_block.clone(),
-        Some(latest_block.clone()),
+        starting_block,
+        Some(latest_block),
         vec![gravity_contract_address],
         vec![ERC20_DEPLOYED_EVENT_SIG],
     );
     let logic_call_executed = web3.check_for_events(
-        starting_block.clone(),
-        Some(latest_block.clone()),
+        starting_block,
+        Some(latest_block),
         vec![gravity_contract_address],
         vec![LOGIC_CALL_EVENT_SIG],
     );
@@ -455,8 +455,7 @@ async fn query_eth_info(
 
     let mut deposit_events = Vec::new();
     for d in deposits {
-        let d =
-            DepositWithMetadata::convert(d, latest_block.clone(), latest_finalized_block.clone());
+        let d = DepositWithMetadata::convert(d, latest_block, latest_finalized_block);
         if let Some(d) = d {
             deposit_events.push(d);
         }
