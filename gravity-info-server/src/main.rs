@@ -28,7 +28,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 use env_logger::Env;
 use gravity_info::{blockchain_info_thread, get_eth_info};
-use log::info;
+use log::{info, error};
 use rocksdb::Options;
 use rocksdb::DB;
 use rustls::ServerConfig;
