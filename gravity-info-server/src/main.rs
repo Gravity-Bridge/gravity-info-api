@@ -56,11 +56,21 @@ async fn get_total_supply() -> impl Responder {
     }
 }
 
+/// If the liquid supply is lower than this value it's stale or otherwise invalid and we should
+/// return an error.
+pub const SUPPLY_CHECKPOINT: u128 = 500000000000000;
 #[get("/total_liquid_supply")]
 async fn get_total_liquid_supply() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v.total_liquid_supply),
+        Some(v) => {
+            if v.total_liquid_supply > SUPPLY_CHECKPOINT.into() {
+                HttpResponse::Ok().json(v.total_liquid_supply)
+            } else {
+                error!("Invalid supply data, got total liquid supply of {:#?}", v);
+                HttpResponse::InternalServerError().json("Invalid supply data, Gravity fullnode is stale")
+            }
+        }
         None => HttpResponse::InternalServerError()
             .json("Info not yet generated, please query in 5 minutes"),
     }
@@ -70,7 +80,14 @@ async fn get_total_liquid_supply() -> impl Responder {
 async fn get_all_supply_info() -> impl Responder {
     // if we have already computed supply info return it, if not return an error
     match get_supply_info() {
-        Some(v) => HttpResponse::Ok().json(v),
+        Some(v) => {
+            if v.total_liquid_supply > SUPPLY_CHECKPOINT.into() {
+                HttpResponse::Ok().json(v)
+            } else {
+                error!("Invalid supply data, got total liquid supply of {:#?}", v);
+                HttpResponse::InternalServerError().json("Invalid supply data, Gravity fullnode is stale")
+            }
+        }
         None => HttpResponse::InternalServerError()
             .json("Info not yet generated, please query in 5 minutes"),
     }
