@@ -2,6 +2,7 @@ use crate::gravity_info::{GRAVITY_NODE_GRPC, GRAVITY_PREFIX, REQUEST_TIMEOUT};
 use actix_rt::System;
 use cosmos_sdk_proto_althea::{
     cosmos::tx::v1beta1::{TxBody, TxRaw},
+    ibc::core::channel::v1::{Acknowledgement, MsgAcknowledgement},
     ibc::{applications::transfer::v1::MsgTransfer, core::client::v1::Height},
 };
 use deep_space::{client::Contact, utils::decode_any};
@@ -165,6 +166,7 @@ async fn get_earliest_block(contact: &Contact, mut start: u64, mut end: u64) -> 
 
 // Loads sendToEth & MsgTransfer messages from grpc endpoint & downlaods to DB
 async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
+    info!("Searching block range {} => {}", start, end);
     let mut current_start = start;
     let retries = AtomicUsize::new(0);
 
@@ -212,6 +214,11 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
         let mut send_eth_counter = 0;
         let blocks_len = blocks.len() as u64;
 
+        const IBC_RECV: &str = "/ibc.core.channel.v1.MsgAcknowledgement";
+        const IBC_ACK: &str = "/ibc.core.channel.v1.Acknowledgement";
+        const MSG_TRANSFER: &str = "/ibc.applications.transfer.v1.MsgTransfer";
+        const MSG_SEND_TO_ETH: &str = "/gravity.v1.MsgSendToEth";
+
         for block in blocks.into_iter() {
             let block = block.unwrap();
             // Get the block number
@@ -237,12 +244,12 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
 
                 // tx sorting
                 for message in tx_body.messages {
-                    if message.type_url == "/gravity.v1.MsgSendToEth" {
+                    if message.type_url == MSG_SEND_TO_ETH {
                         has_msg_send_to_eth = true;
                         msg_counter += 1;
 
                         let msg_send_to_eth_any = prost_types::Any {
-                            type_url: "/gravity.v1.MsgSendToEth".to_string(),
+                            type_url: MSG_SEND_TO_ETH.to_string(),
                             value: message.value,
                         };
                         let msg_send_to_eth: Result<MsgSendToEth, _> =
@@ -264,12 +271,12 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                             );
                             save_msg_send_to_eth(db, &key, &custom_msg_send_to_eth);
                         }
-                    } else if message.type_url == "/ibc.applications.transfer.v1.MsgTransfer" {
+                    } else if message.type_url == MSG_TRANSFER {
                         has_msg_ibc_transfer = true;
                         msg_counter += 1;
 
                         let msg_ibc_transfer_any = prost_types::Any {
-                            type_url: "/ibc.applications.transfer.v1.MsgTransfer".to_string(),
+                            type_url: MSG_TRANSFER.to_string(),
                             value: message.value,
                         };
                         let msg_ibc_transfer: Result<MsgTransfer, _> =
@@ -290,6 +297,58 @@ async fn search(contact: &Contact, start: u64, end: u64, db: &DB) {
                                 block_number, timestamp, tx_hash
                             );
                             save_msg_ibc_transfer(db, &key, &custom_ibc_transfer);
+                        }
+                    } else if message.type_url == IBC_RECV {
+                        has_msg_ibc_transfer = true;
+                        msg_counter += 1;
+
+                        let msg_ibc_recv_any = prost_types::Any {
+                            type_url: IBC_RECV.to_string(),
+                            value: message.value,
+                        };
+                        let msg_ibc_recv: Result<MsgAcknowledgement, _> =
+                            decode_any(msg_ibc_recv_any);
+
+                        if let Ok(msg_ibc_recv) = msg_ibc_recv {
+                            info!("Decoded message ibc recv");
+                            // this is only a option becuase it's a pointer it should never be null
+                            let msg_ibc_transfer_any = prost_types::Any {
+                                type_url: IBC_ACK.to_string(),
+                                value: msg_ibc_recv.acknowledgement,
+                            };
+                            let msg_ibc_transfer: Acknowledgement =
+                                decode_any(msg_ibc_transfer_any).unwrap();
+
+                            let response = match msg_ibc_transfer.response.unwrap() {
+                                cosmos_sdk_proto_althea::ibc::core::channel::v1::acknowledgement::Response::Result(b) => b,
+                                cosmos_sdk_proto_althea::ibc::core::channel::v1::acknowledgement::Response::Error(_) => continue,
+                            };
+
+                            let msg_ibc_transfer_any = prost_types::Any {
+                                type_url: MSG_TRANSFER.to_string(),
+                                value: response,
+                            };
+                            let msg_ibc_transfer: Result<MsgTransfer, _> =
+                                decode_any(msg_ibc_transfer_any);
+
+                            if let Ok(msg_ibc_transfer) = msg_ibc_transfer {
+                                info!("Decoded transfer inside ibc_recv");
+                                let custom_ibc_transfer =
+                                    CustomMsgTransfer::from(&msg_ibc_transfer);
+                                let timestamp = block
+                                    .header
+                                    .as_ref()
+                                    .unwrap()
+                                    .time
+                                    .as_ref()
+                                    .unwrap()
+                                    .seconds;
+                                let key = format!(
+                                    "{:012}:msgIbcRecv:{}:{}",
+                                    block_number, timestamp, tx_hash
+                                );
+                                save_msg_ibc_recv(db, &key, &custom_ibc_transfer);
+                            }
                         }
                     }
                 }
@@ -357,55 +416,19 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
     info!("Started downloading & parsing transactions");
     let contact: Contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX)?;
 
-    let mut retries = 0;
-    let status = loop {
-        let result = contact.get_chain_status().await;
-
-        match result {
-            Ok(chain_status) => {
-                break chain_status;
-            }
-            Err(e) => {
-                retries += 1;
-                if retries >= MAX_RETRIES {
-                    error!("Failed to get chain status, grpc error: {:?}", e);
-                    return Err(Box::new(e));
-                } else {
-                    error!("Failed to get chain status, grpc error: {:?}, retrying", e);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+    let mut latest_block = None;
+    while latest_block.is_none() {
+        match contact.get_latest_block().await {
+            Ok(v) => match v {
+                deep_space::client::types::LatestBlock::Latest { block }
+                | deep_space::client::types::LatestBlock::Syncing { block } => {
+                    latest_block = Some(block.header.unwrap().height as u64)
                 }
-            }
-        }
-    };
-
-    // get the latest block this node has
-    let mut current_status = status;
-    let latest_block;
-    loop {
-        match current_status {
-            deep_space::client::ChainStatus::Moving { block_height } => {
-                latest_block = Some(block_height);
-                break;
-            }
-            _ => match contact.get_chain_status().await {
-                Ok(chain_status) => {
-                    if let deep_space::client::ChainStatus::Moving { block_height } = chain_status {
-                        latest_block = Some(block_height);
-                        break;
-                    }
-                    current_status = chain_status;
-                }
-                Err(e) => {
-                    retries += 1;
-                    if retries >= MAX_RETRIES {
-                        error!("Failed to get chain status: {:?}", e);
-                        return Err(Box::new(e));
-                    } else {
-                        error!("Failed to get chain status: {:?}, retrying", e);
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
+                deep_space::client::types::LatestBlock::WaitingToStart => {
+                    error!("Node is waiting to start after an upgrade, can not get latest block")
                 }
             },
+            Err(e) => error!("Failed to get latest block with {:?}, retrying", e),
         }
     }
 
@@ -478,11 +501,19 @@ pub async fn transactions(db: &DB) -> Result<(), Box<dyn std::error::Error>> {
 
 //saves serialized transactions to database
 pub fn save_msg_send_to_eth(db: &DB, key: &str, data: &CustomMsgSendToEth) {
+    info!("Send to eth save!");
     let data_json = serde_json::to_string(data).unwrap();
     db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
 }
 
 pub fn save_msg_ibc_transfer(db: &DB, key: &str, data: &CustomMsgTransfer) {
+    info!("Ibc transfer save");
+    let data_json = serde_json::to_string(data).unwrap();
+    db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
+}
+
+pub fn save_msg_ibc_recv(db: &DB, key: &str, data: &CustomMsgTransfer) {
+    info!("Successful save!");
     let data_json = serde_json::to_string(data).unwrap();
     db.put(key.as_bytes(), data_json.as_bytes()).unwrap();
 }

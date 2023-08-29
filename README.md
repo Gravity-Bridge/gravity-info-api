@@ -391,8 +391,11 @@ Provides Gravity Bridge transaction info. Currently two message types are suppor
 `curl https://info.gravitychain.io:9000/transactions/send_to_eth`
 
 **MsgTransfer** is the message type used to transfer assets in between IBC enabled Cosmos chains.
+Transfers from Gravity bridge are stored under ibc_transfer and transfers to gravity bridge are stored
+under ibc_recv. The message content is the same.
 
 - URL: `https://info.gravitychain.io:9000/transactions/ibc_transfer`
+- URL: `https://info.gravitychain.io:9000/transactions/ibc_recv`
 - Method: `GET`
 - URL Params: `None`
 - Data Params: `None`
@@ -428,6 +431,8 @@ Provides Gravity Bridge transaction info. Currently two message types are suppor
 - Sample Call:
 
 `curl https://info.gravitychain.io:9000/transactions/ibc_transfer`
+`curl https://info.gravitychain.io:9000/transactions/ibc_recv`
+
 
 ---
 

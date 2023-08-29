@@ -145,6 +145,11 @@ async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> impl R
     transactions::endpoints::get_all_msg_ibc_transfer_transactions(db).await
 }
 
+#[get("/transactions/ibc_recv")]
+async fn get_all_msg_ibc_recv_transactions(db: web::Data<Arc<DB>>) -> impl Responder {
+    transactions::endpoints::get_all_msg_ibc_recv_transactions(db).await
+}
+
 #[get("/transactions/send_to_eth/time")]
 async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Responder {
     transactions::endpoints::get_send_to_eth_transaction_totals(db).await
@@ -161,11 +166,11 @@ async fn main() -> std::io::Result<()> {
     let api_db = web::Data::new(db.clone());
     transaction_info_thread(db.clone());
     // starts background thread for gathering into
-    blockchain_info_thread();
+    //blockchain_info_thread();
     // starts a background thread for generating the total supply numbers
-    chain_total_supply_thread();
+    //chain_total_supply_thread();
     // starts a background thread for generating volume numbers
-    bridge_volume_thread();
+    //bridge_volume_thread();
 
     let server = HttpServer::new(move || {
         App::new()
@@ -185,6 +190,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(api_db.clone())
             .service(get_all_msg_send_to_eth_transactions)
             .service(get_all_msg_ibc_transfer_transactions)
+            .service(get_all_msg_ibc_recv_transactions)
             .service(get_send_to_eth_transaction_totals)
             .service(generate_batch_tx)
     });
