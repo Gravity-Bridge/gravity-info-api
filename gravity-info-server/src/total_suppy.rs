@@ -346,14 +346,11 @@ async fn batch_query_user_information(
 ) -> Result<Vec<UserInfo>, CosmosGrpcError> {
     trace!("Starting batch of {}", input.len());
     let mut bankrpc = BankQueryClient::connect(GRAVITY_NODE_GRPC)
-        .await?
-        .accept_gzip();
+        .await?;
     let mut distrpc = DistQueryClient::connect(GRAVITY_NODE_GRPC)
-        .await?
-        .accept_gzip();
+        .await?;
     let mut stakingrpc = StakingQueryClient::connect(GRAVITY_NODE_GRPC)
-        .await?
-        .accept_gzip();
+        .await?;
 
     let mut ret = Vec::new();
     for account in input {

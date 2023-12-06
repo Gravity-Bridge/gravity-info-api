@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethereum_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="8ba6deb81373d9d3b702d22d20bca028f74dc2ed"}
-cosmos_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="8ba6deb81373d9d3b702d22d20bca028f74dc2ed"}
-gravity_utils = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="8ba6deb81373d9d3b702d22d20bca028f74dc2ed"}
-relayer = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="8ba6deb81373d9d3b702d22d20bca028f74dc2ed"}
-gravity_proto = "0.2.2"
+ethereum_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
+cosmos_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
+gravity_utils = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
+relayer = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
+gravity_proto = "0.4.3"
 deep_space = "2"
-web30 = "1.1"
-clarity = "1.1"
+web30 = "1.2"
+clarity = "1.2"
 serde_derive = "1"
 serde = { version = "1.0", features = ["derive"] }
 env_logger = "0.10"
@@ -23,14 +23,14 @@ actix-cors = "0.6"
 rustls = "0.20"
 rustls-pemfile = "0.3"
 lazy_static = "1.4"
-tonic = "0.7"
+tonic = "0.10"
 futures = "0.3"
 num256 = "0.5"
 openssl-probe = "0.1"
 tokio = {version="1", features=["rt-multi-thread"]}
-cosmos-sdk-proto-althea = "0.14"
+cosmos-sdk-proto-althea = "0.16"
 sha256 = "1"
-prost-types ="0.10"
+prost-types ="0.12"
 rocksdb = "0.21"
 actix-rt = "2.5.0"
 serde_json = "1.0"
