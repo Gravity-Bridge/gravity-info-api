@@ -18,7 +18,7 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 /// The backend RPC port for the info server fucntions implemented in this repo
 const INFO_SERVER_PORT: u16 = 9000;
 /// Provides the eip-712 metamask rpc for Gravity Bridge
-const METAMASK_RPC_PORT: u16 = 9001;
+const METAMASK_RPC_PORT: u16 = 8545;
 
 use crate::batch_relaying::generate_raw_batch_tx;
 use crate::gravity_info::get_erc20_metadata;
