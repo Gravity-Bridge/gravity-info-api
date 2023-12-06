@@ -15,7 +15,10 @@ const DOMAIN: &str = if cfg!(test) || DEVELOPMENT {
 } else {
     "info.gravitychain.io"
 };
-const PORT: u16 = 9000;
+/// The backend RPC port for the info server fucntions implemented in this repo
+const INFO_SERVER_PORT: u16 = 9000;
+/// Provides the eip-712 metamask rpc for Gravity Bridge
+const METAMASK_RPC_PORT: u16 = 9001;
 
 use crate::batch_relaying::generate_raw_batch_tx;
 use crate::gravity_info::get_erc20_metadata;
@@ -27,7 +30,9 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 use env_logger::Env;
+use futures::future::join;
 use gravity_info::{blockchain_info_thread, get_eth_info};
+use jsonrpc_server::server::request_dispatcher;
 use log::{error, info};
 use rocksdb::Options;
 use rocksdb::DB;
@@ -167,7 +172,7 @@ async fn main() -> std::io::Result<()> {
     // starts a background thread for generating volume numbers
     bridge_volume_thread();
 
-    let server = HttpServer::new(move || {
+    let info_server = HttpServer::new(move || {
         App::new()
             .wrap(
                 Cors::default()
@@ -189,7 +194,18 @@ async fn main() -> std::io::Result<()> {
             .service(generate_batch_tx)
     });
 
-    let server = if SSL {
+    let metamask_server = HttpServer::new(move || {
+        App::new()
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_header()
+                    .allow_any_method(),
+            )
+            .service(request_dispatcher)
+    });
+
+    let (info_server, metamask_server) = if SSL {
         let cert_chain = load_certs(&format!("/etc/letsencrypt/live/{}/fullchain.pem", DOMAIN));
         let keys = load_private_key(&format!("/etc/letsencrypt/live/{}/privkey.pem", DOMAIN));
         let config = ServerConfig::builder()
@@ -199,12 +215,19 @@ async fn main() -> std::io::Result<()> {
             .unwrap();
 
         info!("Binding to SSL");
-        server.bind_rustls(format!("{}:{}", DOMAIN, PORT), config)?
+        let a =
+            info_server.bind_rustls(format!("{}:{}", DOMAIN, INFO_SERVER_PORT), config.clone())?;
+        let b = metamask_server.bind_rustls(format!("{}:{}", DOMAIN, METAMASK_RPC_PORT), config)?;
+        (a, b)
     } else {
-        server.bind(format!("{}:{}", DOMAIN, PORT))?
+        let a = info_server.bind(format!("{}:{}", DOMAIN, INFO_SERVER_PORT))?;
+        let b = metamask_server.bind(format!("{}:{}", DOMAIN, METAMASK_RPC_PORT))?;
+        (a, b)
     };
 
-    server.run().await?;
+    let (a, b) = join(info_server.run(), metamask_server.run()).await;
+    a?;
+    b?;
 
     Ok(())
 }

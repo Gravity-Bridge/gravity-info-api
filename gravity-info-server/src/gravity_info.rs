@@ -110,19 +110,18 @@ pub fn blockchain_info_thread() {
                 }
             };
 
-            let gravity_contract_address =
-                match query_gravity_info(&contact, &mut grpc_client).await {
-                    Ok(v) => {
-                        let bridge_eth_address = v.params.bridge_ethereum_address;
-                        set_gravity_info(v);
-                        info!("Successfully updated Gravity info");
-                        bridge_eth_address
-                    }
-                    Err(e) => {
-                        error!("Failed to update Gravity Info with {:?}", e);
-                        return;
-                    }
-                };
+            let gravity_contract_address = match query_gravity_info(&mut grpc_client).await {
+                Ok(v) => {
+                    let bridge_eth_address = v.params.bridge_ethereum_address;
+                    set_gravity_info(v);
+                    info!("Successfully updated Gravity info");
+                    bridge_eth_address
+                }
+                Err(e) => {
+                    error!("Failed to update Gravity Info with {:?}", e);
+                    return;
+                }
+            };
             let eth_info = query_eth_info(&web30, gravity_contract_address);
             let erc20_metadata = get_all_erc20_metadata(&contact, &web30, &mut grpc_client);
             let (eth_info, erc20_metadata) = join!(eth_info, erc20_metadata);
@@ -237,7 +236,6 @@ pub struct Erc20Metadata {
 }
 
 async fn query_gravity_info(
-    _contact: &Contact,
     grpc_client: &mut GravityQueryClient<Channel>,
 ) -> Result<GravityInfo, GravityError> {
     // can't be easily parallelized becuase of the grpc client :(
@@ -469,4 +467,18 @@ async fn query_eth_info(
         logic_calls,
         latest_eth_block: latest_block,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[actix_web::test]
+    async fn test_gravity_info() {
+        env_logger::init();
+        let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
+            .await
+            .unwrap();
+        let _info = query_gravity_info(&mut grpc_client).await.unwrap();
+    }
 }

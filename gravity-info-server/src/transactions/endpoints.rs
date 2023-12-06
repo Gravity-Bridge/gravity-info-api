@@ -69,7 +69,8 @@ pub async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> imp
 
                     if let Some(naive_datetime) = naive_opt {
                         // Convert Option<NaiveDateTime> to DateTime
-                        _datetime_utc = Some(DateTime::from_naive_utc_and_offset(naive_datetime, Utc));
+                        _datetime_utc =
+                            Some(DateTime::from_naive_utc_and_offset(naive_datetime, Utc));
                     } else {
                         error!("Invalid timestamp: {}", timestamp);
                         continue; // skip this iteration if timestamp is invalid
@@ -147,7 +148,10 @@ pub async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> im
 
                     if let Some(naive_datetime) = naive_opt {
                         // Convert Option<NaiveDateTime> to DateTime
-                        _datetime_utc = Some(DateTime::<Utc>::from_naive_utc_and_offset(naive_datetime, Utc));
+                        _datetime_utc = Some(DateTime::<Utc>::from_naive_utc_and_offset(
+                            naive_datetime,
+                            Utc,
+                        ));
                     } else {
                         error!("Invalid timestamp: {}", timestamp);
                         continue; // skip this iteration if timestamp is invalid

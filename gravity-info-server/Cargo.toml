@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethereum_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
-cosmos_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
-gravity_utils = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
-relayer = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="28bcecf372c795af4f99b67fe2b4ed58a13e892b"}
+ethereum_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"}
+cosmos_gravity = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"}
+gravity_utils = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"}
+relayer = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"}
+jsonrpc_server = {git = "https://github.com/gravity-bridge/gravity-bridge", rev="d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"}
 gravity_proto = "0.4.3"
-deep_space = "2"
+deep_space = "2.23"
 web30 = "1.2"
 clarity = "1.2"
 serde_derive = "1"

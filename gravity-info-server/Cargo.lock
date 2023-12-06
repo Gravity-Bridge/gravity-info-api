@@ -347,6 +347,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "atty"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
+dependencies = [
+ "hermit-abi 0.1.19",
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -689,7 +700,7 @@ checksum = "273c656822c0367587c0fc6ae5a0bf6e19a10d700cd49168a084975b7f84dcfe"
 dependencies = [
  "num-traits",
  "num256",
- "secp256k1 0.28.0",
+ "secp256k1",
  "serde",
  "serde_derive",
  "sha3",
@@ -742,7 +753,7 @@ dependencies = [
 [[package]]
 name = "cosmos_gravity"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=28bcecf372c795af4f99b67fe2b4ed58a13e892b#28bcecf372c795af4f99b67fe2b4ed58a13e892b"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1#d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"
 dependencies = [
  "bytes",
  "clarity",
@@ -794,9 +805,9 @@ dependencies = [
 
 [[package]]
 name = "deep_space"
-version = "2.23.0"
+version = "2.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70dd3eeda5582365b7f15ba9d3fa196efde6d344ac9d63eb3dd1c03e169acb17"
+checksum = "ff5f0331927f701e2142333c7af97d45c1cb5e4fbab99065654d70bb2240ce6b"
 dependencies = [
  "base64 0.21.5",
  "bech32",
@@ -812,7 +823,7 @@ dependencies = [
  "rand",
  "ripemd",
  "rust_decimal",
- "secp256k1 0.27.0",
+ "secp256k1",
  "serde",
  "serde_derive",
  "serde_json",
@@ -884,6 +895,19 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95b3f3e67048839cb0d0781f445682a35113da7121f7c949db0e2be96a4fbece"
@@ -914,7 +938,7 @@ dependencies = [
 [[package]]
 name = "ethereum_gravity"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=28bcecf372c795af4f99b67fe2b4ed58a13e892b#28bcecf372c795af4f99b67fe2b4ed58a13e892b"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1#d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"
 dependencies = [
  "clarity",
  "deep_space",
@@ -1105,13 +1129,14 @@ dependencies = [
  "cosmos-sdk-proto-althea",
  "cosmos_gravity",
  "deep_space",
- "env_logger",
+ "env_logger 0.10.1",
  "ethereum_gravity",
  "futures",
  "gravity_proto",
  "gravity_utils",
  "hex",
  "json",
+ "jsonrpc_server",
  "lazy_static",
  "log",
  "num256",
@@ -1146,7 +1171,7 @@ dependencies = [
 [[package]]
 name = "gravity_utils"
 version = "0.1.0"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=28bcecf372c795af4f99b67fe2b4ed58a13e892b#28bcecf372c795af4f99b67fe2b4ed58a13e892b"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1#d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"
 dependencies = [
  "clarity",
  "deep_space",
@@ -1199,6 +1224,15 @@ name = "hashbrown"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
+
+[[package]]
+name = "hermit-abi"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -1362,7 +1396,7 @@ version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb0889898416213fab133e1d33a0e5858a48177452750691bde3666d0fdbaf8b"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.3",
  "rustix",
  "windows-sys 0.48.0",
 ]
@@ -1405,6 +1439,33 @@ name = "json"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
+
+[[package]]
+name = "jsonrpc_server"
+version = "0.1.0"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1#d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"
+dependencies = [
+ "actix-cors",
+ "actix-rt",
+ "actix-web",
+ "chrono",
+ "env_logger 0.9.3",
+ "futures",
+ "hex",
+ "json",
+ "lazy_static",
+ "log",
+ "mime",
+ "num256",
+ "openssl-probe",
+ "rust_decimal",
+ "rustls 0.20.9",
+ "rustls-pemfile 0.3.0",
+ "serde",
+ "serde_json",
+ "sha256",
+ "tokio",
+]
 
 [[package]]
 name = "keccak"
@@ -1673,7 +1734,7 @@ version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.3",
  "libc",
 ]
 
@@ -2027,14 +2088,14 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 [[package]]
 name = "relayer"
 version = "0.4.3"
-source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=28bcecf372c795af4f99b67fe2b4ed58a13e892b#28bcecf372c795af4f99b67fe2b4ed58a13e892b"
+source = "git+https://github.com/gravity-bridge/gravity-bridge?rev=d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1#d43073fb5b17919bf2f86d2fa348e6ca1cee8cb1"
 dependencies = [
  "actix-rt",
  "clarity",
  "cosmos_gravity",
  "deep_space",
  "docopt",
- "env_logger",
+ "env_logger 0.10.1",
  "ethereum_gravity",
  "futures",
  "gravity_proto",
@@ -2294,29 +2355,11 @@ checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "secp256k1"
-version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
-dependencies = [
- "secp256k1-sys 0.8.1",
-]
-
-[[package]]
-name = "secp256k1"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2acea373acb8c21ecb5a23741452acd2593ed44ee3d343e72baaa143bc89d0d5"
 dependencies = [
- "secp256k1-sys 0.9.0",
-]
-
-[[package]]
-name = "secp256k1-sys"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
-dependencies = [
- "cc",
+ "secp256k1-sys",
 ]
 
 [[package]]
