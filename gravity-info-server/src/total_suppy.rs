@@ -469,7 +469,6 @@ mod tests {
 
     #[actix_web::test]
     async fn test_vesting_query() {
-        env_logger::init();
         let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
         let supply = compute_liquid_supply(&contact, GRAVITY_DENOM.to_string())
             .await
