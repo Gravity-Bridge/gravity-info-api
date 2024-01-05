@@ -405,18 +405,24 @@ function cosmosAddressToExplorerLink(input: string) {
   let gravBase = "https://mintscan.io/gravity-bridge/account/"
   let osmoBase = "https://mintscan.io/osmosis/account/"
   let crescentBase = "https://mintscan.io/crescent/account/"
-  let cantoBase = "https://explorer.nodestake.top/canto/account/"
+  let cantoBase = "https://mintscan.io/canto/account/"
+  let cosmosBase = "https://mintscan.io/cosmos/account/"
+  let kujiBase = "https://finder.kujira.network/kaiyo-1/address/"
   let mantleBase = "https://mintscan.io/mantle/account/"
   if (input.startsWith("gravity")) {
     return gravBase + input
   } else if (input.startsWith("canto")) {
     return cantoBase + input
-  } else if (input.startsWith("osmosis")) {
+  } else if (input.startsWith("osmo")) {
     return osmoBase + input
   } else if (input.startsWith("cre")) {
     return crescentBase + input
   } else if (input.startsWith("mantle")) {
     return mantleBase + input
+  } else if (input.startsWith("cosmos")) {
+    return cosmosBase + input
+  } else if (input.startsWith("kujira")) {
+    return kujiBase + input
   } else {
     return input
   }
