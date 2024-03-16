@@ -6,11 +6,10 @@ use cosmos_gravity::query::{
 };
 use deep_space::Contact;
 use ethereum_gravity::message_signatures::encode_tx_batch_confirm_hashed;
-use ethereum_gravity::utils::encode_valset_struct;
+use ethereum_gravity::submit_batch::encode_batch_payload;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
-use gravity_utils::error::GravityError;
-use gravity_utils::types::{to_arrays, BatchConfirmResponse, TransactionBatch, Valset};
-use log::{error, trace};
+use gravity_utils::types::TransactionBatch;
+use log::error;
 use relayer::find_latest_valset::find_latest_valset;
 use std::time::Duration;
 use web30::client::Web3;
@@ -86,7 +85,7 @@ pub async fn generate_raw_batch_tx(batch_nonce: u64) -> impl Responder {
     // this checks that the signatures for the batch are actually possible to submit to the chain
     let hash = encode_tx_batch_confirm_hashed(params.gravity_id.clone(), target_batch.clone());
 
-    if let Err(e) = current_valset.order_sigs(&hash, &sigs) {
+    if let Err(e) = current_valset.order_sigs(&hash, &sigs, true) {
         error!("Current validator set is not valid to relay this batch, a validator set update must be submitted!");
         error!("{:?}", e);
         return HttpResponse::InternalServerError().json("sig order not valid");
@@ -96,55 +95,4 @@ pub async fn generate_raw_batch_tx(batch_nonce: u64) -> impl Responder {
         Ok(payload) => HttpResponse::Ok().json(bytes_to_hex_str(&payload)),
         Err(_) => HttpResponse::InternalServerError().json("Failed to encode payload!"),
     }
-}
-
-// TODO make this function in ethereum_gravity public
-fn encode_batch_payload(
-    current_valset: Valset,
-    batch: &TransactionBatch,
-    confirms: &[BatchConfirmResponse],
-    gravity_id: String,
-) -> Result<Vec<u8>, GravityError> {
-    let current_valset_token = encode_valset_struct(&current_valset);
-    let new_batch_nonce = batch.nonce;
-    let hash = encode_tx_batch_confirm_hashed(gravity_id, batch.clone());
-    let sig_data = current_valset.order_sigs(&hash, confirms)?;
-    let sig_arrays = to_arrays(sig_data);
-    let (amounts, destinations, fees) = batch.get_checkpoint_values();
-
-    // Solidity function signature
-    // function submitBatch(
-    // // The validators that approve the batch and new valset encoded as a ValsetArgs struct
-    // address[] memory _currentValidators,
-    // uint256[] memory _currentPowers,
-    // uint256 _currentValsetNonce,
-    // uint256 _rewardAmount,
-    // address _rewardToken,
-    //
-    // // These are arrays of the parts of the validators signatures
-    // uint8[] memory _v,
-    // bytes32[] memory _r,
-    // bytes32[] memory _s,
-    // // The batch of transactions
-    // uint256[] memory _amounts,
-    // address[] memory _destinations,
-    // uint256[] memory _fees,
-    // uint256 _batchNonce,
-    // address _tokenContract,
-    // uint256 _batchTimeout
-    let tokens = &[
-        current_valset_token,
-        sig_arrays.sigs,
-        amounts,
-        destinations,
-        fees,
-        new_batch_nonce.into(),
-        batch.token_contract.into(),
-        batch.batch_timeout.into(),
-    ];
-    let payload = clarity::abi::encode_call("submitBatch((address[],uint256[],uint256,uint256,address),(uint8,bytes32,bytes32)[],uint256[],address[],uint256[],uint256,address,uint256)",
-    tokens).unwrap();
-    trace!("Tokens {:?}", tokens);
-
-    Ok(payload)
 }
