@@ -240,13 +240,19 @@ async fn compute_liquid_supply(
                     let elapsed_since_vesting_started = vesting_start_time.elapsed().unwrap();
                     let vesting_percent_complete = elapsed_since_vesting_started.as_secs() as f64
                         / vesting_duration.as_secs() as f64;
+
+                    if vesting_percent_complete > 1.0 {
+                        total_liquid_supply += user.balance;
+                        continue;
+                    }
+
                     let original_vesting_amount_float: f64 =
                         original_vesting_amount.to_string().parse().unwrap();
                     let total_amount_vested: f64 =
                         original_vesting_amount_float * vesting_percent_complete;
                     let total_amount_vested: Uint256 = (total_amount_vested.ceil() as u128).into();
 
-                    assert!(original_vesting_amount > total_amount_vested);
+                    assert!(original_vesting_amount >= total_amount_vested);
                     let total_amount_still_vesting = original_vesting_amount - total_amount_vested;
 
                     total_vested += total_amount_vested;
