@@ -20,15 +20,13 @@ const INFO_SERVER_PORT: u16 = 9000;
 /// Provides the eip-712 metamask rpc for Gravity Bridge
 const METAMASK_RPC_PORT: u16 = 8545;
 
-use crate::batch_relaying::generate_raw_batch_tx;
+use crate::batch_relaying::generate_batch_tx_responder;
 use crate::gravity_info::get_erc20_metadata;
 use crate::total_suppy::get_supply_info;
-
 use crate::volume::get_volume_info;
 use crate::{gravity_info::get_gravity_info, tls::*};
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-
 use env_logger::Env;
 use futures::future::join;
 use gravity_info::{blockchain_info_thread, get_eth_info};
@@ -37,7 +35,6 @@ use log::{error, info};
 use rocksdb::Options;
 use rocksdb::DB;
 use rustls::ServerConfig;
-
 use std::sync::Arc;
 use total_suppy::chain_total_supply_thread;
 use transactions::database::transaction_info_thread;
@@ -48,7 +45,7 @@ use volume::bridge_volume_thread;
 #[get("/batch_tx/{batch_nonce}")]
 async fn generate_batch_tx(data: web::Path<(u64,)>) -> impl Responder {
     let nonce = data.into_inner().0;
-    generate_raw_batch_tx(nonce).await
+    generate_batch_tx_responder(nonce).await
 }
 
 #[get("/total_supply")]
