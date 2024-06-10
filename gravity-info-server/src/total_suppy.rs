@@ -161,6 +161,10 @@ async fn compute_liquid_supply(
             AccountType::PeriodicVestingAccount(account_info) => {
                 let vesting_start_time =
                     UNIX_EPOCH + Duration::from_secs(account_info.start_time as u64);
+                let vesting_end_time = UNIX_EPOCH
+                    + Duration::from_secs(
+                        account_info.base_vesting_account.as_ref().unwrap().end_time as u64,
+                    );
                 let base = account_info.base_vesting_account.unwrap();
                 let (total_delegated_free, total_delegated_vesting, original_vesting_amount) =
                     sum_vesting(base, denom.clone());
@@ -170,50 +174,67 @@ async fn compute_liquid_supply(
                 total_vesting_staked += total_delegated_vesting;
                 total_nonvesting_staked += total_delegated_free;
 
-                // vesting has started
-                if vesting_start_time < SystemTime::now() {
-                    let mut total_amount_vested: Uint256 = 0u8.into();
-                    // seconds offset from vesting start time
-                    let mut time_counter = 0;
-                    for vesting_period in account_info.vesting_periods {
-                        time_counter += vesting_period.length;
-                        // if this vesting period has already elapsed, add the mount
-                        if vesting_start_time + Duration::from_secs(time_counter as u64)
-                            <= SystemTime::now()
-                        {
-                            // hack assumes vesting is only one coin
-                            let amount: Coin = vesting_period.amount[0].clone().into();
-                            assert_eq!(amount.denom, denom);
-                            total_amount_vested += amount.amount;
-                        }
+                let vesting_has_started = vesting_start_time < SystemTime::now();
+                let vesting_has_ended = vesting_end_time < SystemTime::now();
+                match (vesting_has_started, vesting_has_ended) {
+                    (true, true) => {
+                        // treat this like a normal ccount
+                        total_liquid_balances += user.balance;
+                        total_nonvesting_staked += user.total_staked;
+                        total_unclaimed_rewards += user.unclaimed_rewards;
+
+                        total_liquid_supply += user.balance;
+                        total_liquid_supply += user.unclaimed_rewards;
+                        total_liquid_supply += user.total_staked;
                     }
-                    assert!(total_amount_vested <= original_vesting_amount);
-                    let total_amount_still_vesting = original_vesting_amount - total_amount_vested;
+                    (true, false) => {
+                        // handle vesting in progress
+                        let mut total_amount_vested: Uint256 = 0u8.into();
+                        // seconds offset from vesting start time
+                        let mut time_counter = 0;
+                        for vesting_period in account_info.vesting_periods {
+                            time_counter += vesting_period.length;
+                            // if this vesting period has already elapsed, add the mount
+                            if vesting_start_time + Duration::from_secs(time_counter as u64)
+                                <= SystemTime::now()
+                            {
+                                // hack assumes vesting is only one coin
+                                let amount: Coin = vesting_period.amount[0].clone().into();
+                                assert_eq!(amount.denom, denom);
+                                total_amount_vested += amount.amount;
+                            }
+                        }
+                        assert!(total_amount_vested <= original_vesting_amount);
+                        let total_amount_still_vesting =
+                            original_vesting_amount - total_amount_vested;
 
-                    total_vested += total_amount_vested;
-                    total_vesting += total_amount_still_vesting;
+                        total_vested += total_amount_vested;
+                        total_vesting += total_amount_still_vesting;
 
-                    assert!(total_amount_still_vesting >= total_delegated_vesting);
-                    let vesting_in_balance = total_amount_still_vesting - total_delegated_vesting;
-                    // unvested tokens show up in the balance
-                    // but unvested delegated tokens do not, in the case where a user
-                    // has some vesting, some delegation, some balance, and some unclaimed rewards
-                    assert!(user.balance > vesting_in_balance);
-                    total_liquid_supply += user.balance - vesting_in_balance;
-                }
-                // vesting has not started yet, in this case we subtract total vesting amount
-                // from current balance, if the number is positive (staking could make it negative)
-                // we add to our total
-                else {
-                    assert!(original_vesting_amount >= total_delegated_vesting);
-                    let vesting_in_balance = original_vesting_amount - total_delegated_vesting;
-                    assert!(total_vested > original_vesting_amount);
+                        assert!(total_amount_still_vesting >= total_delegated_vesting);
+                        let vesting_in_balance =
+                            total_amount_still_vesting - total_delegated_vesting;
+                        // unvested tokens show up in the balance
+                        // but unvested delegated tokens do not, in the case where a user
+                        // has some vesting, some delegation, some balance, and some unclaimed rewards
+                        assert!(user.balance > vesting_in_balance);
+                        total_liquid_supply += user.balance - vesting_in_balance;
+                    }
+                    (false, true) => panic!("Vesting has ended but not started"),
+                    (false, false) => {
+                        // vesting has not started yet, in this case we subtract total vesting amount
+                        // from current balance, if the number is positive (staking could make it negative)
+                        // we add to our total
+                        assert!(original_vesting_amount >= total_delegated_vesting);
+                        let vesting_in_balance = original_vesting_amount - total_delegated_vesting;
+                        assert!(total_vested > original_vesting_amount);
 
-                    total_vested += original_vesting_amount;
+                        total_vested += original_vesting_amount;
 
-                    assert!(user.balance > vesting_in_balance);
+                        assert!(user.balance > vesting_in_balance);
 
-                    total_liquid_supply += user.balance - vesting_in_balance;
+                        total_liquid_supply += user.balance - vesting_in_balance;
+                    }
                 }
             }
             AccountType::ContinuousVestingAccount(account_info) => {
