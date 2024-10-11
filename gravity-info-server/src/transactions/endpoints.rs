@@ -3,7 +3,7 @@ use crate::transactions::database::{ApiResponse, CustomMsgSendToEth, CustomMsgTr
 
 use actix_web::Responder;
 use actix_web::{web, HttpResponse};
-use chrono::{DateTime, Datelike, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Datelike, Local, Utc};
 
 use log::error;
 
@@ -62,21 +62,7 @@ pub async fn get_all_msg_send_to_eth_transactions(db: web::Data<Arc<DB>>) -> imp
 
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
 
-                    // Convert timestamp to Option<NaiveDateTime>
-                    let naive_opt = NaiveDateTime::from_timestamp_opt(timestamp, 0);
-
-                    let mut _datetime_utc: Option<DateTime<Utc>> = None;
-
-                    if let Some(naive_datetime) = naive_opt {
-                        // Convert Option<NaiveDateTime> to DateTime
-                        _datetime_utc =
-                            Some(DateTime::from_naive_utc_and_offset(naive_datetime, Utc));
-                    } else {
-                        error!("Invalid timestamp: {}", timestamp);
-                        continue; // skip this iteration if timestamp is invalid
-                    }
-
-                    let datetime_utc = _datetime_utc.unwrap(); // we can safely unwrap because of the `continue` above
+                    let datetime_utc = DateTime::from_timestamp(timestamp, 0).unwrap(); // we can safely unwrap because of the `continue` above
 
                     let datetime_local: DateTime<Local> = datetime_utc.into();
 
@@ -141,23 +127,7 @@ pub async fn get_all_msg_ibc_transfer_transactions(db: web::Data<Arc<DB>>) -> im
 
                     let timestamp = key_parts[2].parse::<i64>().unwrap();
 
-                    // Convert timestamp to Option<NaiveDateTime>
-                    let naive_opt = NaiveDateTime::from_timestamp_opt(timestamp, 0);
-
-                    let mut _datetime_utc: Option<DateTime<Utc>> = None;
-
-                    if let Some(naive_datetime) = naive_opt {
-                        // Convert Option<NaiveDateTime> to DateTime
-                        _datetime_utc = Some(DateTime::<Utc>::from_naive_utc_and_offset(
-                            naive_datetime,
-                            Utc,
-                        ));
-                    } else {
-                        error!("Invalid timestamp: {}", timestamp);
-                        continue; // skip this iteration if timestamp is invalid
-                    }
-
-                    let datetime_utc = _datetime_utc.unwrap(); // we can safely unwrap because of the `continue` above
+                    let datetime_utc = DateTime::from_timestamp(timestamp, 0).unwrap(); // we can safely unwrap because of the `continue` above
 
                     let datetime_local: DateTime<Local> = datetime_utc.into();
 

@@ -1,7 +1,6 @@
 //! This file computes the total volume of Gravity bridge over daily, weekly, and monthly periods, this is an extremely time consuming task
 //! becuase we iterate over the metadata of all erc20 in the bridge this task depends on the fast get info loop completing first
 
-use actix_web::cookie::time::Instant;
 use actix_web::rt::System;
 use clarity::Uint256;
 use futures::future::join3;
@@ -9,6 +8,7 @@ use futures::future::join_all;
 use gravity_utils::error::GravityError;
 use log::{info, warn};
 use serde::Serialize;
+use std::time::Instant;
 use std::{
     sync::{Arc, RwLock},
     thread,
@@ -112,7 +112,7 @@ pub fn bridge_volume_thread() {
                         });
                         info!(
                             "Successfuly updated volume info in {}s!",
-                            start.elapsed().as_seconds_f32()
+                            start.elapsed().as_secs()
                         );
                     }
                     (Err(e), _, _) => warn!("Could not get daily volume {:?}", e),
