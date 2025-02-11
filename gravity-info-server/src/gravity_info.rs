@@ -26,12 +26,12 @@ use tonic::transport::channel::Channel;
 use web30::amm::USDC_CONTRACT_ADDRESS;
 use web30::client::Web3;
 
-const LOOP_TIME: Duration = Duration::from_secs(30);
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const LOOP_TIME: Duration = Duration::from_secs(60);
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 pub const GRAVITY_NODE_GRPC: &str = "https://gravitychain.io:9090";
 //pub const GRAVITY_NODE_GRPC: &str = "http://chainripper-2.althea.net:9090";
 pub const GRAVITY_PREFIX: &str = "gravity";
-pub const ETH_NODE_RPC: &str = "https://eth.chandrastation.com";
+pub const ETH_NODE_RPC: &str = "https://eth.althea.net";
 pub const FINALITY_DELAY: u128 = 100;
 /// number of seconds per eth block
 pub const ETH_BLOCK_TIME: u128 = 12;
@@ -475,10 +475,16 @@ mod tests {
 
     #[actix_web::test]
     async fn test_gravity_info() {
-        env_logger::init();
         let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
             .await
             .unwrap();
         let _info = query_gravity_info(&mut grpc_client).await.unwrap();
+    }
+
+    #[actix_web::test]
+    async fn test_eth_info() {
+        let web3 = Web3::new("https://eth.althea.net", Duration::from_secs(60));
+        let res = query_eth_info(&web3, "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906".parse().unwrap()).await;
+        println!("{:?}", res);
     }
 }
