@@ -39,6 +39,12 @@ json = "0.12"
 hex = "0.4"
 chrono = "0.4"
 rust_decimal= "1.36"
+# we don't call or us OpenSSL directly in this codebase, but by adding
+# this dependency with this feature we can enforce that openssl is compiled
+# in 'vendored' mode all the way down the tree. What this means is that we use
+# an openssl implementation from the crate and not from the system, simplifying
+# our build process for a lot of cross-compile situations
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 development = []

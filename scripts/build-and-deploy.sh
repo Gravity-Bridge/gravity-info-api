@@ -6,8 +6,8 @@ pushd $DIR/../gravity-info-server
 set +e
 rm ../scripts/gravity-info-server
 set -e
-cargo build --release
-cp target/release/gravity-info-server ../scripts
+cross build --target x86_64-unknown-linux-musl --release
+cp target/x86_64-unknown-linux-musl/release/gravity-info-server ../scripts
 popd
 
 pushd $DIR/../gravity-info-dash
