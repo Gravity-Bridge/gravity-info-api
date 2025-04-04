@@ -484,7 +484,13 @@ mod tests {
     #[actix_web::test]
     async fn test_eth_info() {
         let web3 = Web3::new("https://eth.althea.net", Duration::from_secs(60));
-        let res = query_eth_info(&web3, "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906".parse().unwrap()).await;
+        let res = query_eth_info(
+            &web3,
+            "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906"
+                .parse()
+                .unwrap(),
+        )
+        .await;
         println!("{:?}", res);
     }
 }

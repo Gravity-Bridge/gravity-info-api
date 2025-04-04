@@ -7,6 +7,7 @@ use cosmos_sdk_proto_althea::{
 use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
 use gravity_proto::gravity::MsgSendToEth;
+use gravity_utils::types::Valset;
 use lazy_static::lazy_static;
 use log::{error, info};
 use rocksdb::DB;
@@ -496,6 +497,17 @@ pub fn load_msg_send_to_eth(db: &DB, key: &str) -> Option<CustomMsgSendToEth> {
 pub fn load_msg_ibc_transfer(db: &DB, key: &str) -> Option<CustomMsgTransfer> {
     let res = db.get(key.as_bytes()).unwrap();
     res.map(|bytes| serde_json::from_slice::<CustomMsgTransfer>(&bytes).unwrap())
+}
+
+const VALSET_KEY: &str = "last_valset";
+pub fn save_last_valset(db: &DB, data: &Valset) {
+    let data_json = serde_json::to_string(data).unwrap();
+    db.put(VALSET_KEY.as_bytes(), data_json.as_bytes()).unwrap();
+}
+
+pub fn load_last_valset(db: &DB) -> Option<Valset> {
+    let res = db.get(VALSET_KEY.as_bytes()).unwrap();
+    res.map(|bytes| serde_json::from_slice::<Valset>(&bytes).unwrap())
 }
 
 // timestamp function using downloaded blocks as a source of truth

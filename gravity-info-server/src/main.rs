@@ -26,7 +26,9 @@ use crate::total_suppy::get_supply_info;
 use crate::volume::get_volume_info;
 use crate::{gravity_info::get_gravity_info, tls::*};
 use actix_cors::Cors;
+use actix_web::web::Data;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use batch_relaying::valset_update_thread;
 use env_logger::Env;
 use futures::future::join;
 use gravity_info::{blockchain_info_thread, get_eth_info};
@@ -43,9 +45,9 @@ use volume::bridge_volume_thread;
 /// This is a helper api endpoint which generates an unsigned tx for a transaction batch sent from a given address
 /// and returns it to the caller.
 #[get("/batch_tx/{batch_nonce}")]
-async fn generate_batch_tx(data: web::Path<(u64,)>) -> impl Responder {
+async fn generate_batch_tx(data: web::Path<(u64,)>, db: Data<Arc<DB>>) -> impl Responder {
     let nonce = data.into_inner().0;
-    generate_batch_tx_responder(nonce).await
+    generate_batch_tx_responder(nonce, db).await
 }
 
 #[get("/total_supply")]
@@ -160,6 +162,7 @@ async fn main() -> std::io::Result<()> {
     let mut db_options = Options::default();
     db_options.create_if_missing(true);
     let db = Arc::new(DB::open(&db_options, "transactions").expect("Failed to open database"));
+    valset_update_thread(db.clone());
     let api_db = web::Data::new(db.clone());
     transaction_info_thread(db.clone());
     // starts background thread for gathering into

@@ -1,4 +1,5 @@
-use actix_web::{HttpResponse, Responder};
+use actix_rt::System;
+use actix_web::{web, HttpResponse, Responder};
 use clarity::utils::bytes_to_hex_str;
 use clarity::{Address as EthAddress, Uint256};
 use cosmos_gravity::query::{
@@ -8,12 +9,16 @@ use ethereum_gravity::message_signatures::encode_tx_batch_confirm_hashed;
 use ethereum_gravity::submit_batch::encode_batch_payload;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_utils::types::TransactionBatch;
-use log::error;
+use log::{error, info};
 use relayer::find_latest_valset::find_latest_valset;
+use rocksdb::DB;
+use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use web30::client::Web3;
 
 use crate::gravity_info::{ETH_NODE_RPC, GRAVITY_NODE_GRPC, REQUEST_TIMEOUT};
+use crate::transactions::database::{load_last_valset, save_last_valset};
 
 #[derive(Debug)]
 pub enum BatchRelayError {
@@ -21,8 +26,12 @@ pub enum BatchRelayError {
     BadRequest(String),
 }
 
-pub async fn generate_batch_tx_responder(batch_nonce: u64) -> impl Responder {
-    let res = generate_raw_batch_tx(batch_nonce).await;
+pub async fn generate_batch_tx_responder(
+    batch_nonce: u64,
+    db: web::Data<Arc<DB>>,
+) -> impl Responder {
+    let db = db.get_ref().clone();
+    let res = generate_raw_batch_tx(batch_nonce, db).await;
     match res {
         Ok(payload) => HttpResponse::Ok().json(bytes_to_hex_str(&payload)),
         Err(BatchRelayError::ServerError(e)) => HttpResponse::InternalServerError().json(e),
@@ -30,7 +39,10 @@ pub async fn generate_batch_tx_responder(batch_nonce: u64) -> impl Responder {
     }
 }
 
-pub async fn generate_raw_batch_tx(batch_nonce: u64) -> Result<Vec<u8>, BatchRelayError> {
+pub async fn generate_raw_batch_tx(
+    batch_nonce: u64,
+    db: Arc<DB>,
+) -> Result<Vec<u8>, BatchRelayError> {
     let web3 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
     let mut grpc = loop {
         match GravityQueryClient::connect(GRAVITY_NODE_GRPC).await {
@@ -46,14 +58,6 @@ pub async fn generate_raw_batch_tx(batch_nonce: u64) -> Result<Vec<u8>, BatchRel
         Err(_) => {
             return Err(BatchRelayError::ServerError(
                 "Failed to get gravity params!".to_string(),
-            ))
-        }
-    };
-    let gravity_bridge_address: EthAddress = match params.bridge_ethereum_address.parse() {
-        Ok(a) => a,
-        Err(_) => {
-            return Err(BatchRelayError::ServerError(
-                "Failed to parse Gravity Address?".to_string(),
             ))
         }
     };
@@ -110,14 +114,14 @@ pub async fn generate_raw_batch_tx(batch_nonce: u64) -> Result<Vec<u8>, BatchRel
         ));
     }
 
-    let current_valset = find_latest_valset(&mut grpc, gravity_bridge_address, &web3).await;
-    if current_valset.is_err() {
-        error!("Could not get current valset! {:?}", current_valset);
-        return Err(BatchRelayError::ServerError(
-            "Failed tog et sigs for batch".to_string(),
-        ));
-    }
-    let current_valset = current_valset.unwrap();
+    let current_valset = match load_last_valset(&db) {
+        Some(v) => v,
+        None => {
+            return Err(BatchRelayError::ServerError(
+                "Failed to load last valset from db".to_string(),
+            ))
+        }
+    };
 
     // this checks that the signatures for the batch are actually possible to submit to the chain
     let hash = encode_tx_batch_confirm_hashed(params.gravity_id.clone(), target_batch.clone());
@@ -138,13 +142,70 @@ pub async fn generate_raw_batch_tx(batch_nonce: u64) -> Result<Vec<u8>, BatchRel
     }
 }
 
+pub fn valset_update_thread(db: Arc<DB>) {
+    info!("Validator set update thread started");
+
+    thread::spawn(move || loop {
+        let runner = System::new();
+        let db = db.clone();
+        runner.block_on(async move {
+            const SLEEP_TIME: Duration = Duration::from_secs(3600);
+            let web3 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
+            loop {
+                let mut grpc = loop {
+                    match GravityQueryClient::connect(GRAVITY_NODE_GRPC).await {
+                        Ok(client) => break client,
+                        Err(e) => {
+                            error!("Failed to connect to the GRPC server: {:?}", e);
+                            tokio::time::sleep(Duration::from_secs(3)).await;
+                        }
+                    }
+                };
+                let params = match get_gravity_params(&mut grpc).await {
+                    Ok(p) => p,
+                    Err(_) => {
+                        error!("Failed to get gravity params!");
+                        continue;
+                    }
+                };
+                let gravity_bridge_address: EthAddress =
+                    match params.bridge_ethereum_address.parse() {
+                        Ok(a) => a,
+                        Err(_) => {
+                            error!("Failed to parse Gravity Address?");
+                            continue;
+                        }
+                    };
+                let valset =
+                    match find_latest_valset(&mut grpc, gravity_bridge_address, &web3).await {
+                        Ok(v) => v,
+                        Err(_) => {
+                            error!("Failed to get valset for batch");
+                            continue;
+                        }
+                    };
+                save_last_valset(&db, &valset);
+                info!("Saved valset {} to db", valset.nonce);
+                thread::sleep(SLEEP_TIME);
+            }
+        });
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[ignore]
     #[actix_web::test]
     async fn test_batch_relay_query() {
-        let res = generate_raw_batch_tx(34787).await;
-        println!("Got batch response {:?}", res.unwrap());
+        let start = std::time::Instant::now();
+        let db = Arc::new(DB::open_default("test_db").unwrap());
+        let res = generate_raw_batch_tx(38628, db).await;
+        println!(
+            "Got batch response {:?} in {}s",
+            res.unwrap(),
+            start.elapsed().as_secs()
+        );
     }
 }
