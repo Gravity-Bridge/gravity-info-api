@@ -193,7 +193,7 @@ async fn get_gravity_volume_for_token(
         info!("Searching events for {}", erc20.symbol);
         // tiny block range becuase of the huge amount of events
         // these contracts prodcue
-        let blocks_to_search: Uint256 = 500u16.into();
+        let blocks_to_search: Uint256 = 50u16.into();
         let mut current_block = starting_block;
         while current_block + blocks_to_search < ending_block {
             let logs = web3
