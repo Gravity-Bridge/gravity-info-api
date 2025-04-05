@@ -150,6 +150,7 @@ pub fn valset_update_thread(db: Arc<DB>) {
         let db = db.clone();
         runner.block_on(async move {
             const SLEEP_TIME: Duration = Duration::from_secs(3600);
+            const ERROR_SLEEP_TIME: Duration = Duration::from_secs(60);
             let web3 = Web3::new(ETH_NODE_RPC, REQUEST_TIMEOUT);
             loop {
                 let mut grpc = loop {
@@ -157,7 +158,7 @@ pub fn valset_update_thread(db: Arc<DB>) {
                         Ok(client) => break client,
                         Err(e) => {
                             error!("Failed to connect to the GRPC server: {:?}", e);
-                            tokio::time::sleep(Duration::from_secs(3)).await;
+                            tokio::time::sleep(ERROR_SLEEP_TIME).await;
                         }
                     }
                 };
@@ -165,6 +166,7 @@ pub fn valset_update_thread(db: Arc<DB>) {
                     Ok(p) => p,
                     Err(_) => {
                         error!("Failed to get gravity params!");
+                        thread::sleep(ERROR_SLEEP_TIME);
                         continue;
                     }
                 };
@@ -173,6 +175,7 @@ pub fn valset_update_thread(db: Arc<DB>) {
                         Ok(a) => a,
                         Err(_) => {
                             error!("Failed to parse Gravity Address?");
+                            thread::sleep(ERROR_SLEEP_TIME);
                             continue;
                         }
                     };
@@ -181,6 +184,7 @@ pub fn valset_update_thread(db: Arc<DB>) {
                         Ok(v) => v,
                         Err(_) => {
                             error!("Failed to get valset for batch");
+                            thread::sleep(ERROR_SLEEP_TIME);
                             continue;
                         }
                     };
