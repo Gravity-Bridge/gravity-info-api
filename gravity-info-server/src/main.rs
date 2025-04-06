@@ -3,7 +3,6 @@ extern crate lazy_static;
 
 pub mod batch_relaying;
 pub mod gravity_info;
-pub mod tls;
 pub mod total_suppy;
 pub mod transactions;
 pub mod volume;
@@ -22,9 +21,9 @@ const METAMASK_RPC_PORT: u16 = 8545;
 
 use crate::batch_relaying::generate_batch_tx_responder;
 use crate::gravity_info::get_erc20_metadata;
+use crate::gravity_info::get_gravity_info;
 use crate::total_suppy::get_supply_info;
 use crate::volume::get_volume_info;
-use crate::{gravity_info::get_gravity_info, tls::*};
 use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
@@ -36,8 +35,12 @@ use jsonrpc_server::server::request_dispatcher;
 use log::{error, info};
 use rocksdb::Options;
 use rocksdb::DB;
+use rustls::crypto::CryptoProvider;
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::PrivateKeyDer;
 use rustls::ServerConfig;
 use std::sync::Arc;
+use tonic::transport::CertificateDer;
 use total_suppy::chain_total_supply_thread;
 use transactions::database::transaction_info_thread;
 use volume::bridge_volume_thread;
@@ -156,7 +159,10 @@ async fn get_send_to_eth_transaction_totals(db: web::Data<Arc<DB>>) -> impl Resp
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    openssl_probe::init_ssl_cert_env_vars();
+    unsafe {
+        openssl_probe::init_openssl_env_vars();
+    }
+    CryptoProvider::install_default(rustls::crypto::aws_lc_rs::default_provider()).unwrap();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     // starts a background thread for downloading transactions
     let mut db_options = Options::default();
@@ -206,18 +212,23 @@ async fn main() -> std::io::Result<()> {
     });
 
     let (info_server, metamask_server) = if SSL {
-        let cert_chain = load_certs(&format!("/etc/letsencrypt/live/{}/fullchain.pem", DOMAIN));
-        let keys = load_private_key(&format!("/etc/letsencrypt/live/{}/privkey.pem", DOMAIN));
+        let cert_file = format!("/etc/letsencrypt/live/{}/fullchain.pem", DOMAIN);
+        let key_file = format!("/etc/letsencrypt/live/{}/privkey.pem", DOMAIN);
+        let cert_chain = CertificateDer::pem_file_iter(cert_file)
+            .unwrap()
+            .map(|cert| cert.unwrap())
+            .collect();
+        let keys = PrivateKeyDer::from_pem_file(key_file).unwrap();
         let config = ServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(cert_chain, keys)
             .unwrap();
 
         info!("Binding to SSL");
-        let a =
-            info_server.bind_rustls(format!("{}:{}", DOMAIN, INFO_SERVER_PORT), config.clone())?;
-        let b = metamask_server.bind_rustls(format!("{}:{}", DOMAIN, METAMASK_RPC_PORT), config)?;
+        let a = info_server
+            .bind_rustls_0_23(format!("{}:{}", DOMAIN, INFO_SERVER_PORT), config.clone())?;
+        let b = metamask_server
+            .bind_rustls_0_23(format!("{}:{}", DOMAIN, METAMASK_RPC_PORT), config)?;
         (a, b)
     } else {
         let a = info_server.bind(format!("{}:{}", DOMAIN, INFO_SERVER_PORT))?;

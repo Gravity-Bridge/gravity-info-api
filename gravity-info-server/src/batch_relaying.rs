@@ -7,7 +7,7 @@ use cosmos_gravity::query::{
 };
 use ethereum_gravity::message_signatures::encode_tx_batch_confirm_hashed;
 use ethereum_gravity::submit_batch::encode_batch_payload;
-use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
+use gravity_proto::gravity::v1::query_client::QueryClient as GravityQueryClient;
 use gravity_utils::types::TransactionBatch;
 use log::{error, info};
 use relayer::find_latest_valset::find_latest_valset;

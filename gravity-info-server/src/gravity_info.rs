@@ -10,8 +10,8 @@ use cosmos_gravity::query::{
 use deep_space::{Address, Coin, Contact};
 use futures::future::{join, join5, join_all};
 use futures::join;
-use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
-use gravity_proto::gravity::{
+use gravity_proto::gravity::v1::query_client::QueryClient as GravityQueryClient;
+use gravity_proto::gravity::v1::{
     Attestation, BatchFees, Params as GravityParams, QueryDenomToErc20Request,
 };
 use gravity_utils::error::GravityError;
@@ -128,11 +128,11 @@ pub fn blockchain_info_thread() {
             let (eth_info, erc20_metadata) = match (eth_info, erc20_metadata) {
                 (Ok(a), Ok(b)) => (a, b),
                 (_, Err(e)) => {
-                    error!("Failed to get eth info {:?}", e);
+                    error!("Failed to get erc20 metadata {:?}", e);
                     return;
                 }
                 (Err(e), _) => {
-                    error!("Failed to get erc20 metadata {:?}", e);
+                    error!("Failed to get eth_info {:?}", e);
                     return;
                 }
             };
@@ -471,10 +471,15 @@ async fn query_eth_info(
 
 #[cfg(test)]
 mod tests {
+    use rustls::crypto::CryptoProvider;
+
     use super::*;
 
     #[actix_web::test]
     async fn test_gravity_info() {
+        if CryptoProvider::get_default().is_none() {
+            CryptoProvider::install_default(rustls::crypto::aws_lc_rs::default_provider()).unwrap();
+        }
         let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
             .await
             .unwrap();
@@ -483,6 +488,9 @@ mod tests {
 
     #[actix_web::test]
     async fn test_eth_info() {
+        if CryptoProvider::get_default().is_none() {
+            CryptoProvider::install_default(rustls::crypto::aws_lc_rs::default_provider()).unwrap();
+        }
         let web3 = Web3::new("https://eth.althea.net", Duration::from_secs(60));
         let res = query_eth_info(
             &web3,
@@ -491,6 +499,20 @@ mod tests {
                 .unwrap(),
         )
         .await;
+        println!("{:?}", res);
+    }
+
+    #[actix_web::test]
+    async fn test_erc20_metadata() {
+        if CryptoProvider::get_default().is_none() {
+            CryptoProvider::install_default(rustls::crypto::aws_lc_rs::default_provider()).unwrap();
+        }
+        let web3 = Web3::new("https://eth.althea.net", Duration::from_secs(60));
+        let contact = Contact::new(GRAVITY_NODE_GRPC, REQUEST_TIMEOUT, GRAVITY_PREFIX).unwrap();
+        let mut grpc_client = GravityQueryClient::connect(GRAVITY_NODE_GRPC)
+            .await
+            .unwrap();
+        let res = get_all_erc20_metadata(&contact, &web3, &mut grpc_client).await;
         println!("{:?}", res);
     }
 }

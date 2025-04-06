@@ -6,7 +6,7 @@ use cosmos_sdk_proto_althea::{
 };
 use deep_space::{client::Contact, utils::decode_any};
 use futures::future::join_all;
-use gravity_proto::gravity::MsgSendToEth;
+use gravity_proto::gravity::v1::MsgSendToEth;
 use gravity_utils::types::Valset;
 use lazy_static::lazy_static;
 use log::{error, info};
