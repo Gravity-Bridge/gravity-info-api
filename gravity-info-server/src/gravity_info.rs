@@ -180,8 +180,8 @@ async fn get_metadata(web30: &Web3, erc20: EthAddress) -> Result<Erc20Metadata, 
     let query_sender: EthAddress = "0x388C818CA8B9251b393131C08a736A67ccB19297"
         .parse()
         .unwrap();
-    let symbol = web30.get_erc20_symbol(erc20, query_sender);
-    let decimals = web30.get_erc20_decimals(erc20, query_sender);
+    let symbol = web30.get_erc20_symbol(erc20, query_sender, vec![]);
+    let decimals = web30.get_erc20_decimals(erc20, query_sender, vec![]);
     let (symbol, decimals) = join(symbol, decimals).await;
     let (symbol, decimals) = (symbol?, decimals?);
 

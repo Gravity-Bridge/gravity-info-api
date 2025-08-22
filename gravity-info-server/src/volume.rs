@@ -6,8 +6,10 @@ use clarity::Uint256;
 use futures::future::join3;
 use futures::future::join_all;
 use gravity_utils::error::GravityError;
+use log::trace;
 use log::{info, warn};
 use serde::Serialize;
+use std::cmp::min;
 use std::time::Instant;
 use std::{
     sync::{Arc, RwLock},
@@ -183,6 +185,9 @@ async fn get_gravity_volume_for_token(
     gravity_contract_address: EthAddress,
     web3: &Web3,
 ) -> Result<BridgeVolume, GravityError> {
+    // use a short timeout to optimize requests for rapid response this lets the throughput tuning
+    // reach the ideal value much more quickly. Reducing overall load on the server
+    let web3 = Web3::new(&web3.get_url(), Duration::from_secs(5));
     if let Some(exchange_rate) = erc20.exchange_rate {
         let mut volume: f64 = 0u8.into();
         let mut inflow: f64 = 0u8.into();
@@ -191,39 +196,70 @@ async fn get_gravity_volume_for_token(
         let decimals: u32 = erc20.decimals.to_string().parse().unwrap();
         let exchange_rate: f64 = exchange_rate.to_string().parse().unwrap();
         info!("Searching events for {}", erc20.symbol);
-        // tiny block range becuase of the huge amount of events
-        // these contracts prodcue
-        let blocks_to_search: Uint256 = 50u16.into();
+        // this will adjust dynamicly based on success or failure
+        let mut blocks_to_search: u64 = 1_000;
         let mut current_block = starting_block;
-        while current_block + blocks_to_search < ending_block {
-            let logs = web3
-                .check_for_events(
-                    current_block,
-                    Some(current_block + blocks_to_search),
-                    vec![erc20.address],
-                    vec!["Transfer(address,address,uint256)"],
+        loop {
+            if current_block > ending_block {
+                break;
+            }
+            let inner_start = current_block;
+            let inner_end = min(current_block + blocks_to_search.into(), ending_block);
+            match (
+                web3.get_erc20_transfer_events_by_sender(
+                    erc20.address,
+                    gravity_contract_address,
+                    inner_start,
+                    Some(inner_end),
                 )
-                .await?;
-
-            let (v, i, o) = sum_logs(logs, gravity_contract_address, decimals, exchange_rate)?;
-            volume += v;
-            inflow += i;
-            outflow += o;
-
-            current_block += blocks_to_search;
+                .await,
+                web3.get_erc20_transfer_events_by_destination(
+                    erc20.address,
+                    gravity_contract_address,
+                    inner_start,
+                    Some(inner_end),
+                )
+                .await,
+            ) {
+                (Ok(loga), Ok(logsb)) => {
+                    // combine logs to search as if they where generally filtered (aka from anyone to anyone)
+                    let mut logs = loga;
+                    logs.extend(logsb);
+                    let (v, i, o) =
+                        sum_logs(logs, gravity_contract_address, decimals, exchange_rate)?;
+                    volume += v;
+                    inflow += i;
+                    outflow += o;
+                    trace!(
+                        "Sucessfully got logs for {} at blocks {} to {} range of {} blocks",
+                        erc20.symbol,
+                        inner_start,
+                        inner_end,
+                        blocks_to_search
+                    );
+                    // if we succeeded we can try searching more blocks at a time
+                    blocks_to_search = std::cmp::min(
+                        blocks_to_search.saturating_add(blocks_to_search / 10),
+                        500_000,
+                    );
+                    // only update the exterior loop counter on success
+                    current_block = inner_end + 1u8.into();
+                }
+                (Err(e), _) | (_, Err(e)) => {
+                    warn!(
+                            "Error fetching logs for {} at blocks {} to {} with error {:?}, reducing search size from {} blocks",
+                            erc20.symbol,
+                            inner_start,
+                            inner_end,
+                            e,
+                            blocks_to_search,
+                        );
+                    // if we failed we should try searching fewer blocks at a time
+                    blocks_to_search =
+                        std::cmp::max(blocks_to_search.saturating_sub(blocks_to_search / 10), 10);
+                }
+            }
         }
-        let logs = web3
-            .check_for_events(
-                current_block,
-                Some(ending_block),
-                vec![erc20.address],
-                vec!["Transfer(address,address,uint256)"],
-            )
-            .await?;
-        let (v, i, o) = sum_logs(logs, gravity_contract_address, decimals, exchange_rate)?;
-        volume += v;
-        inflow += i;
-        outflow += o;
 
         Ok(BridgeVolume {
             volume,
