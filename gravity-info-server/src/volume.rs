@@ -226,7 +226,8 @@ async fn get_gravity_volume_for_token(
                     let mut logs = loga;
                     logs.extend(logsb);
                     let (v, i, o) =
-                        sum_logs(logs, gravity_contract_address, decimals, exchange_rate)?;
+                        sum_logs(logs, gravity_contract_address, decimals, exchange_rate)
+                            .map_err(|e| *e)?;
                     volume += v;
                     inflow += i;
                     outflow += o;
@@ -277,13 +278,15 @@ fn sum_logs(
     gravity_contract_address: EthAddress,
     decimals: u32,
     exchange_rate: f64,
-) -> Result<(f64, f64, f64), GravityError> {
+) -> Result<(f64, f64, f64), Box<GravityError>> {
     let mut volume: f64 = 0u8.into();
     let mut inflow: f64 = 0u8.into();
     let mut outflow: f64 = 0u8.into();
     for l in logs {
-        let from = EthAddress::from_slice(&l.topics[1][12..32])?;
-        let to = EthAddress::from_slice(&l.topics[2][12..32])?;
+        let from = EthAddress::from_slice(&l.topics[1][12..32])
+            .map_err(|e| Box::new(GravityError::from(e)))?;
+        let to = EthAddress::from_slice(&l.topics[2][12..32])
+            .map_err(|e| Box::new(GravityError::from(e)))?;
         let amount = Uint256::from_be_bytes(&l.data[0..32]);
         if amount > u128::MAX.into() {
             warn!("Found contract deploy!");
